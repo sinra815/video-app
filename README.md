@@ -10,6 +10,9 @@ A web app for generating videos two ways:
    [`google-colab-cli`](https://github.com/googlecolab/google-colab-cli),
    running a diffusers text-to-video pipeline there, and pulling the result
    back.
+3. **AI image-to-video** — a photo + a text prompt (what motion/change to
+   apply) generates a short video via diffusers' I2VGenXL pipeline
+   (`ali-vilab/i2vgen-xl`) on the same Colab GPU lifecycle.
 
 ## Stack
 
@@ -58,14 +61,34 @@ inactivity but can be revoked from the Google account's
 [third-party access page](https://myaccount.google.com/permissions) — if that
 happens, redo this flow and re-upload the secret file.
 
-Two upstream `google-colab-cli` 0.6.0 issues found and worked around here:
-- It calls `jupyter_kernel_client.KernelClient`, which was renamed to
-  `JupyterKernelClient` in `jupyter-kernel-client` 1.0.0, with no upper bound
-  in its own dependency spec. Pinned to `<1.0.0` in
+Upstream issues found and worked around here, all confirmed against real
+Colab sessions:
+- `google-colab-cli` 0.6.0 calls `jupyter_kernel_client.KernelClient`, which
+  was renamed to `JupyterKernelClient` in `jupyter-kernel-client` 1.0.0, with
+  no upper bound in its own dependency spec. Pinned to `<1.0.0` in
   [`requirements.txt`](backend/requirements.txt).
 - `colab exec`'s own `--timeout` (independent of any timeout in this app)
   defaults to 30s — nowhere near enough for a model download plus GPU
   inference. Raised explicitly in `ColabSession.exec_file`.
+- `colab exec` always exits 0 even when the executed code raises inside the
+  kernel (it only prints the traceback to stderr) — a failing script looks
+  identical to a successful one by exit code alone. `exec_file` now requires
+  a marker string the script prints as its last line on success
+  (`success_marker=`), or raises using the captured output.
+- `colab upload`'s Jupyter Contents API payload hardcodes `"chunk": 1` and
+  never sends a finalizing chunk, leaving the remote file
+  truncated/unreadable (`colab upload` itself reports success). Worked
+  around in `ColabImageToVideoGenerator` by embedding the source image as
+  base64 directly in the generated script instead of uploading it.
+- `I2VGenXLPipeline` is deprecated in current `diffusers` (dropped from
+  active maintenance after 0.33.1) and reaches into `CLIPTextModel`
+  internals that newer `transformers` restructured. An unpinned "latest"
+  install of both breaks one way (`AttributeError: 'CLIPTextModel' object
+  has no attribute 'text_model'`); pinning only `transformers` older breaks
+  the other way (`diffusers` importing a `transformers` symbol that doesn't
+  exist yet). Pinned to a matching contemporary pair,
+  `diffusers==0.31.0` + `transformers==4.46.3`, in
+  [`colab_image_to_video.py`](backend/app/generators/colab_image_to_video.py).
 
 ## Running locally
 
