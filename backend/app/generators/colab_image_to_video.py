@@ -54,7 +54,14 @@ class ColabImageToVideoGenerator(VideoGenerator):
             session.start(on_progress)
 
             on_progress("installing model dependencies")
-            session.install(["diffusers", "transformers", "accelerate"], on_progress)
+            # I2VGenXLPipeline is deprecated in current diffusers and reaches
+            # into CLIPTextModel's internals (`text_encoder.text_model...`);
+            # an unpinned "latest" transformers restructured that and broke
+            # it with `AttributeError: 'CLIPTextModel' object has no
+            # attribute 'text_model'` (confirmed against a real session, past
+            # the point where an unrelated image-loading bug was fixed). Pin
+            # to a version from before that restructuring.
+            session.install(["diffusers", "transformers==4.46.3", "accelerate"], on_progress)
 
             on_progress("running image-to-video generation on GPU")
             session.exec_file(local_script, on_progress, success_marker="VIDEO_READY")
