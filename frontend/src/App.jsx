@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import AiForm from "./AiForm.jsx";
 import { getHealth } from "./api";
+import ImageToVideoForm from "./ImageToVideoForm.jsx";
 import JobStatus from "./JobStatus.jsx";
 import SlideshowForm from "./SlideshowForm.jsx";
 
@@ -19,7 +20,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>동영상 생성기</h1>
-        <p className="subtitle">이미지 슬라이드쇼 또는 AI 텍스트-투-비디오로 동영상을 만드세요.</p>
+        <p className="subtitle">이미지 슬라이드쇼, AI 텍스트-투-비디오, 또는 사진+프롬프트로 동영상을 만드세요.</p>
       </header>
 
       {!job && (
@@ -37,12 +38,18 @@ export default function App() {
             >
               AI 텍스트-투-비디오
             </button>
+            <button
+              className={mode === "image" ? "tab active" : "tab"}
+              onClick={() => setMode("image")}
+            >
+              사진 + 프롬프트
+            </button>
           </nav>
 
-          {mode === "slideshow" ? (
-            <SlideshowForm onJobCreated={setJob} />
-          ) : (
-            <AiForm onJobCreated={setJob} colabAvailable={colabAvailable} />
+          {mode === "slideshow" && <SlideshowForm onJobCreated={setJob} />}
+          {mode === "ai" && <AiForm onJobCreated={setJob} colabAvailable={colabAvailable} />}
+          {mode === "image" && (
+            <ImageToVideoForm onJobCreated={setJob} colabAvailable={colabAvailable} />
           )}
         </>
       )}

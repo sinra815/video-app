@@ -80,6 +80,9 @@ class ColabSession:
             timeout=1800,
         )
 
+    def upload(self, local_path: Path, remote_path: str, on_progress: Optional[ProgressCallback] = None) -> None:
+        _run(["upload", "-s", self.session_name, str(local_path), remote_path], on_progress, timeout=600)
+
     def download(self, remote_path: str, local_path: Path, on_progress: Optional[ProgressCallback] = None) -> None:
         _run(["download", "-s", self.session_name, remote_path, str(local_path)], on_progress, timeout=600)
 

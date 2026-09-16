@@ -28,6 +28,16 @@ export async function createAiJob(payload) {
   return res.json();
 }
 
+export async function createImageToVideoJob(payload) {
+  const res = await fetch(`${BASE}/jobs/ai-image-to-video`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Job creation failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getJob(jobId) {
   const res = await fetch(`${BASE}/jobs/${jobId}`);
   if (!res.ok) throw new Error(`Job lookup failed: ${res.status}`);

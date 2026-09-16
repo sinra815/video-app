@@ -5,12 +5,14 @@ from threading import Lock
 
 from . import config
 from .generators.colab_ai import ColabAiGenerator
+from .generators.colab_image_to_video import ColabImageToVideoGenerator
 from .generators.slideshow import SlideshowGenerator
 from .models import Job, JobMode, JobStatus
 
 _GENERATORS = {
     JobMode.SLIDESHOW: SlideshowGenerator(),
     JobMode.AI_TEXT_TO_VIDEO: ColabAiGenerator(),
+    JobMode.AI_IMAGE_TO_VIDEO: ColabImageToVideoGenerator(),
 }
 
 

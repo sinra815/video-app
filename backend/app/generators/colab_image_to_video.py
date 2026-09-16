@@ -5,28 +5,27 @@ from pathlib import Path
 from .. import colab_client, config
 from .base import ProgressCallback, VideoGenerator
 
-_TEMPLATE_PATH = Path(__file__).parent / "colab_ai_template.py"
+_TEMPLATE_PATH = Path(__file__).parent / "colab_image_to_video_template.py"
 
 
-class ColabAiGenerator(VideoGenerator):
-    """Text-to-video generation offloaded to a Google Colab GPU runtime.
+class ColabImageToVideoGenerator(VideoGenerator):
+    """Image + text prompt -> short video, offloaded to a Google Colab GPU runtime.
 
-    Uses google-colab-cli's documented commands (`colab new/install/exec/
-    download/stop`). google-colab-cli only runs on Linux/macOS with an
-    authenticated Google/Colab account; on any other platform (or without
-    auth) this raises colab_client.ColabUnavailableError, which the job
-    runner surfaces as a normal failed-job message.
+    Uses diffusers' I2VGenXL pipeline (ali-vilab/i2vgen-xl), the standard
+    diffusers model that takes both an image and a text prompt. Same
+    provisioning lifecycle as ColabAiGenerator, plus an upload step to get
+    the source image onto the session first.
     """
 
     def generate(self, params: dict, output_path: Path, on_progress: ProgressCallback) -> None:
         if not colab_client.is_available():
             raise colab_client.ColabUnavailableError(
-                "AI 텍스트-투-비디오 생성은 google-colab-cli(Linux/macOS 전용)가 "
+                "사진 기반 AI 영상 생성은 google-colab-cli(Linux/macOS 전용)가 "
                 "설치 및 인증되어 있어야 합니다. 백엔드 README의 Colab 연동 섹션을 참고하세요."
             )
 
         fps = int(params.get("fps", 8))
-        duration = float(params.get("duration_seconds", 4.0))
+        duration = float(params.get("duration_seconds", 2.0))
         num_frames = max(1, int(duration * fps))
 
         script = _TEMPLATE_PATH.read_text(encoding="utf-8").format(
@@ -38,6 +37,8 @@ class ColabAiGenerator(VideoGenerator):
         local_script = Path(tempfile.gettempdir()) / f"colab_job_{uuid.uuid4().hex}.py"
         local_script.write_text(script, encoding="utf-8")
 
+        source_image = Path(params["image_path"])
+
         session_name = f"{config.COLAB_SESSION_PREFIX}-{uuid.uuid4().hex[:8]}"
         session = colab_client.ColabSession(session_name, gpu=params.get("gpu", config.COLAB_DEFAULT_GPU))
         try:
@@ -47,7 +48,10 @@ class ColabAiGenerator(VideoGenerator):
             on_progress("installing model dependencies")
             session.install(["diffusers", "transformers", "accelerate"], on_progress)
 
-            on_progress("running text-to-video generation on GPU")
+            on_progress("uploading source image")
+            session.upload(source_image, "/content/input_image.png", on_progress)
+
+            on_progress("running image-to-video generation on GPU")
             session.exec_file(local_script, on_progress)
 
             on_progress("downloading generated video")

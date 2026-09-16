@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class JobMode(str, Enum):
     SLIDESHOW = "slideshow"
     AI_TEXT_TO_VIDEO = "ai_text_to_video"
+    AI_IMAGE_TO_VIDEO = "ai_image_to_video"
 
 
 class JobStatus(str, Enum):
@@ -33,6 +34,15 @@ class AiTextToVideoParams(BaseModel):
     duration_seconds: float = 4.0
     fps: int = 8
     resolution: str = "512x512"
+    gpu: str = "T4"
+
+
+class AiImageToVideoParams(BaseModel):
+    image_path: str
+    prompt: str
+    negative_prompt: Optional[str] = None
+    duration_seconds: float = 2.0
+    fps: int = 8
     gpu: str = "T4"
 
 

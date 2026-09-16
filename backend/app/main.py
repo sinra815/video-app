@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from . import colab_client, config
 from .jobs import job_store
-from .models import AiTextToVideoParams, Job, JobMode, SlideshowParams
+from .models import AiImageToVideoParams, AiTextToVideoParams, Job, JobMode, SlideshowParams
 
 app = FastAPI(title="Video Generator")
 
@@ -57,6 +57,15 @@ class AiJobRequest(BaseModel):
     gpu: str = "T4"
 
 
+class AiImageToVideoJobRequest(BaseModel):
+    image_file_id: str
+    prompt: str
+    negative_prompt: Optional[str] = None
+    duration_seconds: float = 2.0
+    fps: int = 8
+    gpu: str = "T4"
+
+
 def _resolve_upload(file_id: str) -> Path:
     path = config.UPLOADS_DIR / file_id
     if not path.exists():
@@ -83,6 +92,19 @@ def create_slideshow_job(req: SlideshowJobRequest) -> Job:
 def create_ai_job(req: AiJobRequest) -> Job:
     params = AiTextToVideoParams(**req.model_dump())
     return job_store.create(JobMode.AI_TEXT_TO_VIDEO, params.model_dump())
+
+
+@app.post("/api/jobs/ai-image-to-video", response_model=Job)
+def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
+    params = AiImageToVideoParams(
+        image_path=str(_resolve_upload(req.image_file_id)),
+        prompt=req.prompt,
+        negative_prompt=req.negative_prompt,
+        duration_seconds=req.duration_seconds,
+        fps=req.fps,
+        gpu=req.gpu,
+    )
+    return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump())
 
 
 @app.get("/api/jobs/{job_id}", response_model=Job)
