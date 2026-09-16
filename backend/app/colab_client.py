@@ -45,7 +45,7 @@ def _run(args: list[str], on_progress: Optional[ProgressCallback] = None, timeou
     if on_progress:
         on_progress(f"colab {' '.join(args)}")
     result = subprocess.run(
-        [config.COLAB_BIN, *args],
+        [config.COLAB_BIN, "--auth", config.COLAB_AUTH, *args],
         capture_output=True,
         text=True,
         timeout=timeout,

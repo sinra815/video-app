@@ -14,6 +14,9 @@ for d in (UPLOADS_DIR, OUTPUTS_DIR):
 COLAB_BIN = os.environ.get("COLAB_BIN", "colab")
 COLAB_SESSION_PREFIX = "videoapp"
 COLAB_DEFAULT_GPU = os.environ.get("COLAB_GPU", "T4")
+# 'oauth2' reads ~/.config/colab-cli/token.json (see colab_auth setup in README);
+# the CLI's own default is 'adc', which we don't use.
+COLAB_AUTH = os.environ.get("COLAB_AUTH", "oauth2")
 
 # Comma-separated list of additional allowed CORS origins, e.g. the deployed
 # frontend's URL (https://my-app.onrender.com). Localhost dev origins are
