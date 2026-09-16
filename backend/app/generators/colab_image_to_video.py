@@ -52,7 +52,7 @@ class ColabImageToVideoGenerator(VideoGenerator):
             session.upload(source_image, "/content/input_image.png", on_progress)
 
             on_progress("running image-to-video generation on GPU")
-            session.exec_file(local_script, on_progress)
+            session.exec_file(local_script, on_progress, success_marker="VIDEO_READY")
 
             on_progress("downloading generated video")
             session.download("/content/output.mp4", output_path, on_progress)

@@ -35,7 +35,9 @@ def is_available() -> bool:
     return shutil.which(config.COLAB_BIN) is not None
 
 
-def _run(args: list[str], on_progress: Optional[ProgressCallback] = None, timeout: Optional[int] = None) -> str:
+def _run(
+    args: list[str], on_progress: Optional[ProgressCallback] = None, timeout: Optional[int] = None
+) -> subprocess.CompletedProcess:
     if not is_available():
         raise ColabUnavailableError(
             f"'{config.COLAB_BIN}' CLI not found on PATH. google-colab-cli only "
@@ -55,7 +57,7 @@ def _run(args: list[str], on_progress: Optional[ProgressCallback] = None, timeou
         raise RuntimeError(
             f"colab {' '.join(args)} failed (exit {result.returncode}): {detail or '(no output)'}"
         )
-    return result.stdout
+    return result
 
 
 class ColabSession:
@@ -73,15 +75,28 @@ class ColabSession:
     def install(self, packages: list[str], on_progress: Optional[ProgressCallback] = None) -> None:
         _run(["install", "-s", self.session_name, *packages], on_progress, timeout=900)
 
-    def exec_file(self, local_script: Path, on_progress: Optional[ProgressCallback] = None) -> str:
+    def exec_file(
+        self, local_script: Path, on_progress: Optional[ProgressCallback] = None, success_marker: Optional[str] = None
+    ) -> str:
         # `colab exec`'s own --timeout (code execution deadline inside the
         # session) defaults to just 30s, far too short for a model download
         # plus GPU inference; our outer subprocess timeout is the real ceiling.
-        return _run(
+        #
+        # `colab exec` also always exits 0 even when the executed code raises
+        # an exception inside the kernel — it only prints the traceback to
+        # stderr, it never sets a failing return code for a cell error (only
+        # for session/connection-level failures). So a clean exit code alone
+        # doesn't mean the script actually succeeded; when the caller gives us
+        # a marker the script is expected to print on success, require it.
+        result = _run(
             ["exec", "-s", self.session_name, "-f", str(local_script), "--timeout", "1700"],
             on_progress,
             timeout=1800,
         )
+        if success_marker and success_marker not in result.stdout:
+            detail = _strip_ansi(result.stderr).strip() or _strip_ansi(result.stdout).strip()
+            raise RuntimeError(f"colab exec did not report success: {detail or '(no output)'}")
+        return result.stdout
 
     def upload(self, local_path: Path, remote_path: str, on_progress: Optional[ProgressCallback] = None) -> None:
         _run(["upload", "-s", self.session_name, str(local_path), remote_path], on_progress, timeout=600)

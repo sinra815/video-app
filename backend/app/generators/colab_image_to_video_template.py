@@ -15,9 +15,12 @@ pipe = I2VGenXLPipeline.from_pretrained(
     torch_dtype=torch.float16,
     variant="fp16",
 )
-pipe = pipe.to("cuda")
+# The full model doesn't comfortably fit in a T4's 16GB VRAM alongside
+# activations for 50 inference steps; offload submodules to CPU when idle
+# instead of pipe.to("cuda"), matching diffusers' own I2VGenXL example.
+pipe.enable_model_cpu_offload()
 
-image = load_image("/content/input_image.png")
+image = load_image("/content/input_image.png").convert("RGB")
 prompt = {prompt!r}
 negative_prompt = {negative_prompt!r}
 num_frames = {num_frames}
@@ -29,6 +32,7 @@ frames = pipe(
     negative_prompt=negative_prompt or None,
     num_inference_steps=50,
     num_frames=num_frames,
+    guidance_scale=9.0,
     generator=generator,
 ).frames[0]
 

@@ -48,7 +48,7 @@ class ColabAiGenerator(VideoGenerator):
             session.install(["diffusers", "transformers", "accelerate"], on_progress)
 
             on_progress("running text-to-video generation on GPU")
-            session.exec_file(local_script, on_progress)
+            session.exec_file(local_script, on_progress, success_marker="VIDEO_READY")
 
             on_progress("downloading generated video")
             session.download("/content/output.mp4", output_path, on_progress)
