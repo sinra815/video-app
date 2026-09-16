@@ -51,7 +51,10 @@ def _run(args: list[str], on_progress: Optional[ProgressCallback] = None, timeou
         timeout=timeout,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"colab {' '.join(args)} failed: {_strip_ansi(result.stderr).strip()}")
+        detail = _strip_ansi(result.stderr).strip() or _strip_ansi(result.stdout).strip()
+        raise RuntimeError(
+            f"colab {' '.join(args)} failed (exit {result.returncode}): {detail or '(no output)'}"
+        )
     return result.stdout
 
 
