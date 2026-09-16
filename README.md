@@ -18,24 +18,54 @@ A web app for generating videos two ways:
 
 ## Colab integration status
 
-`google-colab-cli` **only supports Linux/macOS** and needs a Google account
-authenticated against the Colab API (OAuth2 or ADC), plus available Colab
-compute units. Because of that, the AI generation path is built and fully
-wired to the CLI's documented commands (`colab new/install/exec/download/stop`,
+**Live and working** on the deployed backend (verified end-to-end against a
+real Colab GPU session: provisioning, dependency install, model inference,
+video download, teardown). `google-colab-cli` **only supports Linux/macOS**,
+so this only runs on the Render deployment, not on a Windows dev machine —
 see [`app/colab_client.py`](backend/app/colab_client.py) and
-[`app/generators/colab_ai.py`](backend/app/generators/colab_ai.py)), but it
-can only be *exercised* end-to-end on Linux/macOS with the CLI installed and
-authenticated:
-
-```bash
-uv tool install google-colab-cli
-colab auth   # first-time Google OAuth
-```
+[`app/generators/colab_ai.py`](backend/app/generators/colab_ai.py).
 
 `GET /api/health` reports `colab_cli_available` (whether the `colab` binary is
 on `PATH`) so the frontend can show a warning banner when it isn't configured.
-Submitting an AI job without a working CLI still creates a job — it just ends
-up `failed` with a descriptive error, same as any other runtime failure.
+Submitting an AI job without a working CLI/auth still creates a job — it just
+ends up `failed` with a descriptive error, same as any other runtime failure.
+
+### How auth is wired up
+
+`google-colab-cli`'s OAuth2 flow is a copy-paste flow (visit a URL, paste back
+an authorization code) rather than a localhost callback, so it works fine
+from a server. The resulting token lives in a Render **Secret File**
+(`colab_token.json`, backend service → Environment → Secret Files), and the
+start command copies it into place before launching uvicorn:
+
+```
+mkdir -p ~/.config/colab-cli && cp /etc/secrets/colab_token.json ~/.config/colab-cli/token.json && uvicorn ...
+```
+
+(see [`render.yaml`](render.yaml)). The app always passes `--auth oauth2`
+explicitly (`config.COLAB_AUTH`) since the CLI's own default is `adc`.
+
+To (re-)generate the token yourself: run a Python REPL anywhere with
+`google-colab-cli` installed and import `colab_cli.auth` directly (not the
+`colab` CLI binary — it eagerly imports a Windows-incompatible module even
+for unrelated commands). Build an `InstalledAppFlow` from
+`colab_cli/oauth_config.json`'s bundled client config with
+`redirect_uri = colab_cli.auth.REMOTE_REDIRECT_URI`, call
+`authorization_url(prompt="consent", token_usage="remote")`, visit the URL,
+and `fetch_token(code=...)` with the pasted-back code. `flow.credentials.to_json()`
+is the file to upload as the secret. Refresh tokens don't expire from
+inactivity but can be revoked from the Google account's
+[third-party access page](https://myaccount.google.com/permissions) — if that
+happens, redo this flow and re-upload the secret file.
+
+Two upstream `google-colab-cli` 0.6.0 issues found and worked around here:
+- It calls `jupyter_kernel_client.KernelClient`, which was renamed to
+  `JupyterKernelClient` in `jupyter-kernel-client` 1.0.0, with no upper bound
+  in its own dependency spec. Pinned to `<1.0.0` in
+  [`requirements.txt`](backend/requirements.txt).
+- `colab exec`'s own `--timeout` (independent of any timeout in this app)
+  defaults to 30s — nowhere near enough for a model download plus GPU
+  inference. Raised explicitly in `ColabSession.exec_file`.
 
 ## Running locally
 
@@ -92,11 +122,14 @@ service for the backend, and a static site for the frontend.
   (not implemented here).
 - The free web service spins down after 15 minutes of inactivity — the first
   request after that takes 30-60s to wake it back up.
-- The AI Colab path needs `colab auth`'s interactive Google OAuth flow, which
-  isn't practical to run in a normal deploy. It would need a paid plan with
-  shell access to authenticate once, and even then the auth token won't
-  survive a restart without persistent disk. The slideshow feature is
-  unaffected by any of this.
+- The Colab OAuth token is stored as a Render Secret File, which — unlike
+  local disk — *does* survive redeploys and restarts (see "How auth is wired
+  up" above). If Colab jobs start failing with an auth error, the refresh
+  token was likely revoked and needs regenerating.
+- Colab's free tier has unpredictable GPU availability and rate limits meant
+  for interactive notebook use, not a production backend — expect occasional
+  `colab new` failures under real traffic. Colab Pro/Pro+ is more reliable for
+  sustained automated use.
 
 ## Notes for Windows developers
 
