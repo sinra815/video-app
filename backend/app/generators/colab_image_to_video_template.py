@@ -1,14 +1,17 @@
 """Template executed on the remote Colab GPU VM via `colab exec -f`.
 
 {{placeholders}} are filled in by ColabImageToVideoGenerator before upload.
-Runs diffusers' I2VGenXL pipeline (image + text prompt -> video) against an
-image already pushed to the session with `colab upload`, and writes the
-result to /content/output.mp4, which the backend then pulls back with
+Runs diffusers' I2VGenXL pipeline (image + text prompt -> video), and writes
+the result to /content/output.mp4, which the backend then pulls back with
 `colab download`.
 """
+import base64
+import io
+
 import torch
 from diffusers import I2VGenXLPipeline
-from diffusers.utils import export_to_video, load_image
+from diffusers.utils import export_to_video
+from PIL import Image
 
 pipe = I2VGenXLPipeline.from_pretrained(
     "ali-vilab/i2vgen-xl",
@@ -20,7 +23,8 @@ pipe = I2VGenXLPipeline.from_pretrained(
 # instead of pipe.to("cuda"), matching diffusers' own I2VGenXL example.
 pipe.enable_model_cpu_offload()
 
-image = load_image("/content/input_image.png").convert("RGB")
+image_bytes = base64.b64decode({image_b64!r})
+image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 prompt = {prompt!r}
 negative_prompt = {negative_prompt!r}
 num_frames = {num_frames}
