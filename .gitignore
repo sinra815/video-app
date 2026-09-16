@@ -1,0 +1,11 @@
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep
+backend/storage/outputs/*
+!backend/storage/outputs/.gitkeep
+
+frontend/node_modules/
+frontend/dist/
+
+__pycache__/
+*.pyc
+.venv/
