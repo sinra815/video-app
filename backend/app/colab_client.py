@@ -71,7 +71,14 @@ class ColabSession:
         _run(["install", "-s", self.session_name, *packages], on_progress, timeout=900)
 
     def exec_file(self, local_script: Path, on_progress: Optional[ProgressCallback] = None) -> str:
-        return _run(["exec", "-s", self.session_name, "-f", str(local_script)], on_progress, timeout=1800)
+        # `colab exec`'s own --timeout (code execution deadline inside the
+        # session) defaults to just 30s, far too short for a model download
+        # plus GPU inference; our outer subprocess timeout is the real ceiling.
+        return _run(
+            ["exec", "-s", self.session_name, "-f", str(local_script), "--timeout", "1700"],
+            on_progress,
+            timeout=1800,
+        )
 
     def download(self, remote_path: str, local_path: Path, on_progress: Optional[ProgressCallback] = None) -> None:
         _run(["download", "-s", self.session_name, remote_path, str(local_path)], on_progress, timeout=600)
