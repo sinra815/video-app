@@ -18,7 +18,14 @@ from .generators import fal_image_to_video, magic_hour_image_to_video
 from .generators.fal_image_to_video import FalError
 from .generators.magic_hour_image_to_video import MagicHourError
 from .jobs import job_store
-from .models import AiImageToVideoParams, AiTextToVideoParams, Job, JobMode, SlideshowParams
+from .models import (
+    AiImageEditParams,
+    AiImageToVideoParams,
+    AiTextToVideoParams,
+    Job,
+    JobMode,
+    SlideshowParams,
+)
 
 app = FastAPI(title="Video Generator")
 
@@ -42,17 +49,19 @@ def health() -> dict:
     }
 
 
-# Image-to-video generation providers, keyed by the id the frontend sends
-# back in AiImageToVideoJobRequest.provider (and jobs.py dispatches on).
-# Add an entry here (plus a matching generator in jobs.py's
-# _IMAGE_TO_VIDEO_GENERATORS) to wire up another provider.
-_IMAGE_TO_VIDEO_PROVIDERS = {"magic_hour": "Magic Hour", "fal": "fal.ai (LTX-Video)"}
+# Hosted providers, keyed by the id the frontend sends back in
+# AiImageToVideoJobRequest.provider / AiImageEditJobRequest.provider (and
+# jobs.py dispatches on). Both image-to-video and image-edit use the same
+# two accounts/credit pools, just different endpoints per job.py's
+# _IMAGE_TO_VIDEO_GENERATORS / _IMAGE_EDIT_GENERATORS - add an entry here
+# plus a matching generator in both to wire up another provider.
+_HOSTED_PROVIDERS = {"magic_hour": "Magic Hour", "fal": "fal.ai"}
 
 
 @app.get("/api/providers")
 def list_providers() -> list[dict]:
     providers = []
-    for provider_id, label in _IMAGE_TO_VIDEO_PROVIDERS.items():
+    for provider_id, label in _HOSTED_PROVIDERS.items():
         entry = {"id": provider_id, "label": label, "configured": False, "credits": None, "error": None}
         if provider_id == "magic_hour":
             entry["configured"] = bool(config.MAGIC_HOUR_API_KEY)
@@ -109,6 +118,13 @@ class AiImageToVideoJobRequest(BaseModel):
     prompt: str
     negative_prompt: Optional[str] = None
     duration_seconds: float = 5.0
+    provider: str = "magic_hour"
+
+
+class AiImageEditJobRequest(BaseModel):
+    image_file_id: Optional[str] = None
+    image_url: Optional[str] = None
+    prompt: str
     provider: str = "magic_hour"
 
 
@@ -199,7 +215,7 @@ def create_ai_job(req: AiJobRequest) -> Job:
 
 @app.post("/api/jobs/ai-image-to-video", response_model=Job)
 def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
-    if req.provider not in _IMAGE_TO_VIDEO_PROVIDERS:
+    if req.provider not in _HOSTED_PROVIDERS:
         raise HTTPException(400, f"Unknown provider: {req.provider}")
 
     if req.image_file_id:
@@ -217,6 +233,26 @@ def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
         provider=req.provider,
     )
     return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump())
+
+
+@app.post("/api/jobs/ai-image-edit", response_model=Job)
+def create_ai_image_edit_job(req: AiImageEditJobRequest) -> Job:
+    if req.provider not in _HOSTED_PROVIDERS:
+        raise HTTPException(400, f"Unknown provider: {req.provider}")
+
+    if req.image_file_id:
+        image_path = _resolve_upload(req.image_file_id)
+    elif req.image_url:
+        image_path = _download_image_url(req.image_url)
+    else:
+        raise HTTPException(400, "image_file_id or image_url is required")
+
+    params = AiImageEditParams(
+        image_path=str(image_path),
+        prompt=translate.to_english(req.prompt),
+        provider=req.provider,
+    )
+    return job_store.create(JobMode.AI_IMAGE_EDIT, params.model_dump())
 
 
 @app.get("/api/jobs", response_model=list[Job])
@@ -239,4 +275,6 @@ def download_job(job_id: str) -> FileResponse:
         raise HTTPException(404, "Job not found")
     if not job.output_path:
         raise HTTPException(409, "Job has no output yet")
+    if job.mode == JobMode.AI_IMAGE_EDIT:
+        return FileResponse(job.output_path, media_type="image/png", filename=f"{job_id}.png")
     return FileResponse(job.output_path, media_type="video/mp4", filename=f"{job_id}.mp4")

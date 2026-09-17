@@ -34,7 +34,16 @@ export default function JobStatus({ job, onReset }) {
         <p className="error-text">{current.error}</p>
       )}
 
-      {current.status === "done" && (
+      {current.status === "done" && current.mode === "ai_image_edit" && (
+        <div className="job-result">
+          <img src={downloadUrl(current.id)} alt="편집된 사진" />
+          <a className="button" href={downloadUrl(current.id)} download>
+            사진 다운로드
+          </a>
+        </div>
+      )}
+
+      {current.status === "done" && current.mode !== "ai_image_edit" && (
         <div className="job-result">
           <video controls src={downloadUrl(current.id)} />
           <a className="button" href={downloadUrl(current.id)} download>

@@ -5,7 +5,9 @@ from threading import Lock
 
 from . import config
 from .generators.colab_ai import ColabAiGenerator
+from .generators.fal_image_edit import FalImageEditGenerator
 from .generators.fal_image_to_video import FalImageToVideoGenerator
+from .generators.magic_hour_image_edit import MagicHourImageEditGenerator
 from .generators.magic_hour_image_to_video import MagicHourImageToVideoGenerator
 from .generators.slideshow import SlideshowGenerator
 from .models import Job, JobMode, JobStatus
@@ -15,12 +17,24 @@ _GENERATORS = {
     JobMode.AI_TEXT_TO_VIDEO: ColabAiGenerator(),
 }
 
-# AI_IMAGE_TO_VIDEO has multiple interchangeable providers (see
-# main.py's _IMAGE_TO_VIDEO_PROVIDERS), selected per-job via params["provider"]
-# rather than a single fixed generator like the other modes above.
+# AI_IMAGE_TO_VIDEO and AI_IMAGE_EDIT each have multiple interchangeable
+# providers (see main.py's _IMAGE_TO_VIDEO_PROVIDERS /
+# _IMAGE_EDIT_PROVIDERS), selected per-job via params["provider"] rather
+# than a single fixed generator like the other modes above.
 _IMAGE_TO_VIDEO_GENERATORS = {
     "magic_hour": MagicHourImageToVideoGenerator(),
     "fal": FalImageToVideoGenerator(),
+}
+
+_IMAGE_EDIT_GENERATORS = {
+    "magic_hour": MagicHourImageEditGenerator(),
+    "fal": FalImageEditGenerator(),
+}
+
+# File extension for each job mode's output, since providers return
+# different media types (video vs. still image).
+_OUTPUT_EXTENSIONS = {
+    JobMode.AI_IMAGE_EDIT: ".png",
 }
 
 
@@ -55,10 +69,12 @@ class JobStore:
     def _run(self, job_id: str, params: dict) -> None:
         self._update(job_id, status=JobStatus.RUNNING, progress="starting")
         job = self.get(job_id)
-        output_path = config.OUTPUTS_DIR / f"{job_id}.mp4"
         mode = JobMode(job.mode)
+        output_path = config.OUTPUTS_DIR / f"{job_id}{_OUTPUT_EXTENSIONS.get(mode, '.mp4')}"
         if mode == JobMode.AI_IMAGE_TO_VIDEO:
             generator = _IMAGE_TO_VIDEO_GENERATORS[params["provider"]]
+        elif mode == JobMode.AI_IMAGE_EDIT:
+            generator = _IMAGE_EDIT_GENERATORS[params["provider"]]
         else:
             generator = _GENERATORS[mode]
 

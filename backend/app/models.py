@@ -10,6 +10,7 @@ class JobMode(str, Enum):
     SLIDESHOW = "slideshow"
     AI_TEXT_TO_VIDEO = "ai_text_to_video"
     AI_IMAGE_TO_VIDEO = "ai_image_to_video"
+    AI_IMAGE_EDIT = "ai_image_edit"
 
 
 class JobStatus(str, Enum):
@@ -42,6 +43,12 @@ class AiImageToVideoParams(BaseModel):
     prompt: str
     negative_prompt: Optional[str] = None
     duration_seconds: float = 5.0
+    provider: str = "magic_hour"
+
+
+class AiImageEditParams(BaseModel):
+    image_path: str
+    prompt: str
     provider: str = "magic_hour"
 
 

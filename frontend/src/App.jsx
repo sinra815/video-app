@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import AiForm from "./AiForm.jsx";
 import { getHealth } from "./api";
 import ChangePinForm from "./ChangePinForm.jsx";
+import ImageEditForm from "./ImageEditForm.jsx";
 import ImageToVideoForm from "./ImageToVideoForm.jsx";
 import JobHistory from "./JobHistory.jsx";
 import JobStatus from "./JobStatus.jsx";
@@ -10,7 +11,7 @@ import PinLock from "./PinLock.jsx";
 export default function App() {
   const [unlocked, setUnlocked] = useState(false);
   const [showChangePin, setShowChangePin] = useState(false);
-  const [mode, setMode] = useState("image");
+  const [mode, setMode] = useState("edit");
   const [job, setJob] = useState(null);
   const [colabAvailable, setColabAvailable] = useState(false);
 
@@ -27,8 +28,8 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>동영상 생성기</h1>
-        <p className="subtitle">AI 텍스트-투-비디오 또는 사진+프롬프트로 동영상을 만드세요.</p>
+        <h1>AI 사진/동영상 생성기</h1>
+        <p className="subtitle">사진을 올리고 프롬프트로 원하는 모습으로 바꾸거나, 동영상으로 만드세요.</p>
         <button type="button" className="link-button" onClick={() => setShowChangePin(true)}>
           비밀번호 변경
         </button>
@@ -40,16 +41,22 @@ export default function App() {
         <>
           <nav className="tabs">
             <button
-              className={mode === "ai" ? "tab active" : "tab"}
-              onClick={() => setMode("ai")}
+              className={mode === "edit" ? "tab active" : "tab"}
+              onClick={() => setMode("edit")}
             >
-              AI 텍스트-투-비디오
+              사진 편집
             </button>
             <button
               className={mode === "image" ? "tab active" : "tab"}
               onClick={() => setMode("image")}
             >
-              사진 + 프롬프트
+              사진 + 프롬프트(영상)
+            </button>
+            <button
+              className={mode === "ai" ? "tab active" : "tab"}
+              onClick={() => setMode("ai")}
+            >
+              AI 텍스트-투-비디오
             </button>
             <button
               className={mode === "history" ? "tab active" : "tab"}
@@ -59,6 +66,7 @@ export default function App() {
             </button>
           </nav>
 
+          {mode === "edit" && <ImageEditForm onJobCreated={setJob} />}
           {mode === "ai" && <AiForm onJobCreated={setJob} colabAvailable={colabAvailable} />}
           {mode === "image" && <ImageToVideoForm onJobCreated={setJob} />}
           {mode === "history" && <JobHistory onSelectJob={setJob} />}

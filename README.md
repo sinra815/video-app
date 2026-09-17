@@ -16,6 +16,11 @@ A web app for generating videos two ways:
    Hour](#image-to-video-via-magic-hour) below), not Colab. Also supports
    giving the image as a URL instead of uploading a file, since the server
    fetches it itself.
+4. **AI image edit** — a photo + a text prompt (what to change) returns an
+   edited still image instead of a video. Shares the same two hosted
+   providers as image-to-video (Magic Hour's `/ai-image-editor`, or fal.ai's
+   FLUX Kontext [dev]) and the same account/credit pool - pick whichever has
+   balance left in the "생성 API" selector.
 
 ## Stack
 
