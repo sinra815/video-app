@@ -60,7 +60,7 @@ def _request(method: str, path: str, body: Optional[dict] = None) -> dict:
 
 def _upload_image(image_path: Path) -> str:
     ext = image_path.suffix.lstrip(".").lower() or "jpg"
-    result = _request("POST", "/files/upload-urls", {"items": [{"extension": ext, "type_": "image"}]})
+    result = _request("POST", "/files/upload-urls", {"items": [{"extension": ext, "type": "image"}]})
     item = result["items"][0]
 
     upload_req = urllib.request.Request(
