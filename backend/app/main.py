@@ -110,6 +110,11 @@ def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
     return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump(), notify_email=req.notify_email)
 
 
+@app.get("/api/jobs", response_model=list[Job])
+def list_jobs() -> list[Job]:
+    return job_store.list_all()
+
+
 @app.get("/api/jobs/{job_id}", response_model=Job)
 def get_job(job_id: str) -> Job:
     job = job_store.get(job_id)

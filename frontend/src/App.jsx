@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import AiForm from "./AiForm.jsx";
 import { getHealth } from "./api";
 import ImageToVideoForm from "./ImageToVideoForm.jsx";
+import JobHistory from "./JobHistory.jsx";
 import JobStatus from "./JobStatus.jsx";
 import SlideshowForm from "./SlideshowForm.jsx";
 
@@ -44,6 +45,12 @@ export default function App() {
             >
               사진 + 프롬프트
             </button>
+            <button
+              className={mode === "history" ? "tab active" : "tab"}
+              onClick={() => setMode("history")}
+            >
+              작업 내역
+            </button>
           </nav>
 
           {mode === "slideshow" && <SlideshowForm onJobCreated={setJob} />}
@@ -51,6 +58,7 @@ export default function App() {
           {mode === "image" && (
             <ImageToVideoForm onJobCreated={setJob} colabAvailable={colabAvailable} />
           )}
+          {mode === "history" && <JobHistory onSelectJob={setJob} />}
         </>
       )}
 

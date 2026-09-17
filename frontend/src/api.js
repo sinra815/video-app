@@ -38,6 +38,12 @@ export async function createImageToVideoJob(payload) {
   return res.json();
 }
 
+export async function listJobs() {
+  const res = await fetch(`${BASE}/jobs`);
+  if (!res.ok) throw new Error(`Job list failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getJob(jobId) {
   const res = await fetch(`${BASE}/jobs/${jobId}`);
   if (!res.ok) throw new Error(`Job lookup failed: ${res.status}`);
