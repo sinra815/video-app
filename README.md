@@ -11,8 +11,10 @@ A web app for generating videos two ways:
    running a diffusers text-to-video pipeline there, and pulling the result
    back.
 3. **AI image-to-video** — a photo + a text prompt (what motion/change to
-   apply) generates a short video via diffusers' I2VGenXL pipeline
-   (`ali-vilab/i2vgen-xl`) on the same Colab GPU lifecycle.
+   apply) generates a short video via diffusers' LTX-Video pipeline
+   (`Lightricks/LTX-Video`) on the same Colab GPU lifecycle. Also supports
+   giving the image as a URL instead of uploading a file, since the server
+   fetches it itself.
 
 ## Stack
 
@@ -80,34 +82,27 @@ Colab sessions:
   truncated/unreadable (`colab upload` itself reports success). Worked
   around in `ColabImageToVideoGenerator` by embedding the source image as
   base64 directly in the generated script instead of uploading it.
-- `I2VGenXLPipeline` is deprecated in current `diffusers` (dropped from
-  active maintenance after 0.33.1) and reaches into `CLIPTextModel`
-  internals that newer `transformers` restructured. An unpinned "latest"
-  install of both breaks one way (`AttributeError: 'CLIPTextModel' object
-  has no attribute 'text_model'`); pinning only `transformers` older breaks
-  the other way (`diffusers` importing a `transformers` symbol that doesn't
-  exist yet). Pinned to a matching contemporary pair,
-  `diffusers==0.31.0` + `transformers==4.46.3`, in
-  [`colab_image_to_video.py`](backend/app/generators/colab_image_to_video.py).
-- `I2VGenXLPipeline`'s own defaults are `height=704, width=1280` — with
-  `num_frames` folded into the batch dim for the temporal transformer, that
-  blows past a T4's 16GB VRAM (`CUDA out of memory` mid-forward, inside the
-  `transformer_in` feed-forward block) even with `enable_model_cpu_offload()`
-  on, since offload only moves idle submodules off-GPU, not activations.
-  Confirmed against a real session; the overshoot was modest (~3.4GiB
-  against a ~14.5GiB budget). Added `enable_vae_slicing()` /
-  `enable_attention_slicing()` for headroom, plus capping resolution.
-  An initial fix capped all the way to `height=320, width=576` to be safe,
-  but that's ~5x fewer pixels than native and pushed the model far enough
-  outside its trained scale to cause visible morphing/warping artifacts in
-  the output (confirmed against a real generation) — this model degrades
-  noticeably away from its native resolution. Settled on `height=512,
-  width=896` (~2x native's overshoot margin, ~2.4x more pixels than the
-  first attempt) as a better balance, in
-  [`colab_image_to_video_template.py`](backend/app/generators/colab_image_to_video_template.py).
-  If OOM resurfaces at this size, step down gradually rather than jumping
-  back to a very small resolution; if warping persists even without OOM,
-  it may be closer to this deprecated model's inherent quality ceiling.
+- Image-to-video originally used `I2VGenXLPipeline` (2023, deprecated
+  upstream). Even after tuning resolution up from an initial safe fallback
+  (512x896) to reclaim unused T4 headroom (576x1024, confirmed to run
+  without OOM), a real generation showed severe temporal instability: a
+  coherent first frame that visibly collapsed into gray noise by the last
+  frame of a 16-frame clip. This wasn't a resolution problem, so raising
+  resolution further wouldn't have fixed it.
+- Switched image-to-video to `LTXImageToVideoPipeline`
+  ([Lightricks/LTX-Video](https://huggingface.co/Lightricks/LTX-Video),
+  Apache-2.0, Nov 2024) — more recent and actively maintained than
+  I2VGenXL, and documented at ~10GB VRAM for a 704x480/161-frame/50-step
+  generation, comfortably under a T4's 16GB even before scaling resolution
+  up per GPU tier (see `_GPU_PROFILES` in
+  [`colab_image_to_video.py`](backend/app/generators/colab_image_to_video.py)).
+  Its T5-XXL text encoder is ~11B params on its own, so
+  `enable_model_cpu_offload()` (in
+  [`colab_image_to_video_template.py`](backend/app/generators/colab_image_to_video_template.py))
+  is load-bearing here too, not just an optimization.
+  LTX-Video also requires `num_frames` of the form `8k+1` (its temporal VAE
+  compresses by 8x) — `_ltx_num_frames()` rounds the requested duration to
+  the nearest valid count.
 
 ## Running locally
 

@@ -8,30 +8,41 @@ from .base import ProgressCallback, VideoGenerator
 
 _TEMPLATE_PATH = Path(__file__).parent / "colab_image_to_video_template.py"
 
-# I2VGenXL's native resolution is height=704, width=1280. A T4's 16GB VRAM
-# can't fit that alongside inference activations even with CPU offload
-# (confirmed OOM, ~3.4GiB over a ~14.5GiB budget), so it runs at a reduced
-# resolution instead - see the "raised resolution" note in
-# colab_image_to_video_template.py. L4 (24GB) and A100 (40GB+) have enough
-# headroom to run at native resolution, which noticeably improves output
-# quality since this model degrades outside its trained scale.
+# LTX-Video (Lightricks/LTX-Video, Apache-2.0) documents "under 720x1280" as
+# its best-quality range; height/width must both be divisible by 32. T4's
+# entry matches the ~10GB VRAM configuration documented for this pipeline
+# (704x480, 161 frames, 50 steps); L4/A100 have enough headroom to go higher.
 _GPU_PROFILES = {
-    # 512x896 (the original T4 fallback) is only ~51% of native pixel count -
-    # a big, untested jump down from the point that actually OOM'd (native,
-    # 100%). 576x1024 (~66% of native) is a real attempt to claw back some of
-    # that unused headroom; if it OOMs, step back down.
-    "T4": {"height": 576, "width": 1024, "cpu_offload": True},
-    "L4": {"height": 704, "width": 1280, "cpu_offload": True},
-    "A100": {"height": 704, "width": 1280, "cpu_offload": False},
+    "T4": {"height": 480, "width": 704},
+    "L4": {"height": 608, "width": 896},
+    "A100": {"height": 704, "width": 1280},
 }
+
+# LTX-Video is conditioned on a target frame rate as part of its trained
+# motion prior; the API's user-facing `fps` field was tuned for the old
+# I2VGenXL model's much lower typical values (default 8) and would feed this
+# model a frame rate far outside what it was trained on, so it's not used
+# here - duration_seconds still controls output length.
+_LTX_FRAME_RATE = 24
+
+
+def _ltx_num_frames(duration_seconds: float) -> int:
+    # LTX-Video's temporal VAE compresses by 8x, so num_frames must be of the
+    # form 8k+1. Round the requested duration to the nearest valid count.
+    target = max(1, round(duration_seconds * _LTX_FRAME_RATE))
+    k = max(1, round((target - 1) / 8))
+    return 8 * k + 1
 
 
 class ColabImageToVideoGenerator(VideoGenerator):
     """Image + text prompt -> short video, offloaded to a Google Colab GPU runtime.
 
-    Uses diffusers' I2VGenXL pipeline (ali-vilab/i2vgen-xl), the standard
-    diffusers model that takes both an image and a text prompt. Same
-    provisioning lifecycle as ColabAiGenerator.
+    Uses diffusers' LTX-Video pipeline (Lightricks/LTX-Video, Apache-2.0), a
+    more recent (Nov 2024) and actively maintained model than the previously
+    used I2VGenXL. I2VGenXL showed severe temporal instability in practice -
+    a coherent first frame that visibly collapsed into gray noise by the
+    last frame of a 16-frame clip (confirmed against a real generation) -
+    which raising resolution alone didn't fix.
 
     The source image is embedded as base64 directly in the generated script
     (decoded and written to disk by the script itself) rather than sent via
@@ -48,24 +59,21 @@ class ColabImageToVideoGenerator(VideoGenerator):
                 "설치 및 인증되어 있어야 합니다. 백엔드 README의 Colab 연동 섹션을 참고하세요."
             )
 
-        fps = int(params.get("fps", 8))
-        duration = float(params.get("duration_seconds", 2.0))
-        num_frames = max(1, int(duration * fps))
-
-        image_b64 = base64.b64encode(Path(params["image_path"]).read_bytes()).decode("ascii")
-
         gpu = params.get("gpu", config.COLAB_DEFAULT_GPU)
         profile = _GPU_PROFILES.get(gpu, _GPU_PROFILES["T4"])
+        duration = float(params.get("duration_seconds", 2.0))
+        num_frames = _ltx_num_frames(duration)
+
+        image_b64 = base64.b64encode(Path(params["image_path"]).read_bytes()).decode("ascii")
 
         script = _TEMPLATE_PATH.read_text(encoding="utf-8").format(
             image_b64=image_b64,
             prompt=params["prompt"],
             negative_prompt=params.get("negative_prompt") or "",
             num_frames=num_frames,
-            fps=fps,
+            frame_rate=_LTX_FRAME_RATE,
             height=profile["height"],
             width=profile["width"],
-            use_cpu_offload=profile["cpu_offload"],
         )
         local_script = Path(tempfile.gettempdir()) / f"colab_job_{uuid.uuid4().hex}.py"
         local_script.write_text(script, encoding="utf-8")
@@ -77,18 +85,10 @@ class ColabImageToVideoGenerator(VideoGenerator):
             session.start(on_progress)
 
             on_progress("installing model dependencies")
-            # I2VGenXLPipeline is deprecated (dropped from active maintenance
-            # after diffusers 0.33.1) and reaches into CLIPTextModel
-            # internals that current transformers restructured. Pinning only
-            # transformers older then breaks the other direction: unpinned
-            # "latest" diffusers expects newer transformers exports
-            # (confirmed against real sessions both ways -
-            # `AttributeError: 'CLIPTextModel' object has no attribute
-            # 'text_model'` with everything unpinned, then
-            # `ImportError: cannot import name 'Dinov2WithRegistersConfig'`
-            # with only transformers pinned old). Pin both to a matching,
-            # contemporary pair from while I2VGenXL was still maintained.
-            session.install(["diffusers==0.31.0", "transformers==4.46.3", "accelerate"], on_progress)
+            session.install(
+                ["diffusers>=0.32,<1", "transformers", "accelerate", "sentencepiece", "protobuf"],
+                on_progress,
+            )
 
             on_progress("running image-to-video generation on GPU")
             session.exec_file(local_script, on_progress, success_marker="VIDEO_READY")
