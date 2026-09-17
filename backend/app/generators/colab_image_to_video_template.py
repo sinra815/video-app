@@ -38,12 +38,18 @@ frames = pipe(
     prompt=prompt,
     image=image,
     # The pipeline's own defaults (height=704, width=1280) produce latents
-    # far too large for a T4's 16GB once num_frames is folded into the
-    # batch dim for the temporal transformer - that's what actually OOMs,
-    # not the UNet weights themselves (confirmed: OOM happens mid-forward,
-    # inside transformer_in's feed-forward block). Cap to a size that fits.
-    height=320,
-    width=576,
+    # too large for a T4's 16GB once num_frames is folded into the batch
+    # dim for the temporal transformer (confirmed OOM mid-forward, inside
+    # transformer_in's feed-forward block - but the overshoot was modest,
+    # ~3.4GiB against a ~14.5GiB budget). An earlier fix cut all the way to
+    # 320x576 to be safe, but going that far below the model's trained
+    # resolution introduced visible morphing/warping artifacts (confirmed
+    # against a real generation) - this model degrades noticeably outside
+    # its native scale. Halving native resolution (rather than quartering
+    # it) keeps proportionally much more headroom against that ~23%
+    # overshoot while staying far closer to the trained scale.
+    height=512,
+    width=896,
     negative_prompt=negative_prompt or None,
     num_inference_steps=50,
     num_frames=num_frames,

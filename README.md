@@ -94,9 +94,20 @@ Colab sessions:
   blows past a T4's 16GB VRAM (`CUDA out of memory` mid-forward, inside the
   `transformer_in` feed-forward block) even with `enable_model_cpu_offload()`
   on, since offload only moves idle submodules off-GPU, not activations.
-  Confirmed against a real session. Fixed by capping to `height=320,
-  width=576` and adding `enable_vae_slicing()` / `enable_attention_slicing()`
-  in [`colab_image_to_video_template.py`](backend/app/generators/colab_image_to_video_template.py).
+  Confirmed against a real session; the overshoot was modest (~3.4GiB
+  against a ~14.5GiB budget). Added `enable_vae_slicing()` /
+  `enable_attention_slicing()` for headroom, plus capping resolution.
+  An initial fix capped all the way to `height=320, width=576` to be safe,
+  but that's ~5x fewer pixels than native and pushed the model far enough
+  outside its trained scale to cause visible morphing/warping artifacts in
+  the output (confirmed against a real generation) — this model degrades
+  noticeably away from its native resolution. Settled on `height=512,
+  width=896` (~2x native's overshoot margin, ~2.4x more pixels than the
+  first attempt) as a better balance, in
+  [`colab_image_to_video_template.py`](backend/app/generators/colab_image_to_video_template.py).
+  If OOM resurfaces at this size, step down gradually rather than jumping
+  back to a very small resolution; if warping persists even without OOM,
+  it may be closer to this deprecated model's inherent quality ceiling.
 
 ## Running locally
 
