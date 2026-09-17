@@ -89,6 +89,14 @@ Colab sessions:
   exist yet). Pinned to a matching contemporary pair,
   `diffusers==0.31.0` + `transformers==4.46.3`, in
   [`colab_image_to_video.py`](backend/app/generators/colab_image_to_video.py).
+- `I2VGenXLPipeline`'s own defaults are `height=704, width=1280` — with
+  `num_frames` folded into the batch dim for the temporal transformer, that
+  blows past a T4's 16GB VRAM (`CUDA out of memory` mid-forward, inside the
+  `transformer_in` feed-forward block) even with `enable_model_cpu_offload()`
+  on, since offload only moves idle submodules off-GPU, not activations.
+  Confirmed against a real session. Fixed by capping to `height=320,
+  width=576` and adding `enable_vae_slicing()` / `enable_attention_slicing()`
+  in [`colab_image_to_video_template.py`](backend/app/generators/colab_image_to_video_template.py).
 
 ## Running locally
 
