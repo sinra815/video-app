@@ -1,20 +1,7 @@
-import { useEffect, useRef } from "react";
-
 // Digit entry via on-screen buttons only (no <input>), so focusing this
-// never pops up the phone's native keyboard.
+// never pops up the phone's native keyboard. Requires an explicit "확인"
+// press to submit rather than auto-submitting on the 4th digit.
 export default function PinPad({ value, onChange, maxLength = 4, onComplete }) {
-  const firedFor = useRef("");
-
-  useEffect(() => {
-    if (value.length === maxLength && onComplete && firedFor.current !== value) {
-      firedFor.current = value;
-      onComplete(value);
-    }
-    if (value.length < maxLength) {
-      firedFor.current = "";
-    }
-  }, [value, maxLength, onComplete]);
-
   function press(digit) {
     if (value.length < maxLength) {
       onChange(value + digit);
@@ -23,6 +10,16 @@ export default function PinPad({ value, onChange, maxLength = 4, onComplete }) {
 
   function backspace() {
     onChange(value.slice(0, -1));
+  }
+
+  function clearAll() {
+    onChange("");
+  }
+
+  function confirm() {
+    if (value.length === maxLength) {
+      onComplete(value);
+    }
   }
 
   return (
@@ -38,14 +35,26 @@ export default function PinPad({ value, onChange, maxLength = 4, onComplete }) {
             {d}
           </button>
         ))}
-        <button type="button" className="pin-key pin-key-empty" tabIndex={-1} aria-hidden="true" />
+        <button type="button" className="pin-key pin-key-text" onClick={clearAll}>
+          모두
+          <br />
+          지우기
+        </button>
         <button type="button" className="pin-key" onClick={() => press("0")}>
           0
         </button>
-        <button type="button" className="pin-key" onClick={backspace} aria-label="지우기">
+        <button type="button" className="pin-key" onClick={backspace} aria-label="한 자리 지우기">
           ⌫
         </button>
       </div>
+      <button
+        type="button"
+        className="button pin-confirm"
+        disabled={value.length !== maxLength}
+        onClick={confirm}
+      >
+        확인
+      </button>
     </div>
   );
 }

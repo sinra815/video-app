@@ -195,8 +195,10 @@ header h1 {
 .pin-key {
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 1px solid #d5d7dc;
-  background: #fff;
+  border: 1px solid #b8bdc7;
+  background: #e9ebef;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  color: #1a1a1a;
   font-size: 1.4rem;
   cursor: pointer;
   touch-action: manipulation;
@@ -205,13 +207,19 @@ header h1 {
 }
 
 .pin-key:active {
-  background: #eef2ff;
+  background: #dbe3fb;
   border-color: #2563eb;
 }
 
-.pin-key-empty {
-  visibility: hidden;
-  cursor: default;
+.pin-key-text {
+  font-size: 0.75rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.pin-confirm {
+  width: 100%;
+  max-width: 260px;
 }
 
 .job-status {
