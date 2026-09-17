@@ -37,6 +37,7 @@ import base64
 import io
 import json
 import mimetypes
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -50,6 +51,13 @@ from .base import ProgressCallback, VideoGenerator
 _MODEL = "@cf/black-forest-labs/flux-2-dev"
 _TIMEOUT_SECONDS = 120
 _MAX_DIMENSION = 512
+# FLUX.2 [dev] is popular enough that Cloudflare's free-tier capacity for it
+# is often exhausted (429 {"code": 3040, "message": "Capacity temporarily
+# exceeded, please try again"}), confirmed intermittent (not permanent)
+# against a real account - retrying with backoff clears it within a couple
+# of attempts in practice.
+_CAPACITY_ERROR_CODE = 3040
+_RETRY_DELAYS_SECONDS = (5, 15, 30)
 
 
 class CloudflareError(RuntimeError):
@@ -132,9 +140,22 @@ class CloudflareImageEditGenerator(VideoGenerator):
         on_progress("resizing source image")
         image_bytes = _resize_for_upload(image_path)
 
-        on_progress("submitting job to Cloudflare Workers AI")
         prompt = f"Using image 0 as the source photo, {params['prompt']}"
-        content_type, raw = _run(prompt, image_bytes)
+        attempts = len(_RETRY_DELAYS_SECONDS) + 1
+        for attempt in range(1, attempts + 1):
+            on_progress(
+                "submitting job to Cloudflare Workers AI"
+                if attempt == 1
+                else f"retrying Cloudflare Workers AI ({attempt}/{attempts})"
+            )
+            try:
+                content_type, raw = _run(prompt, image_bytes)
+                break
+            except CloudflareError as exc:
+                is_capacity_error = f'"code":{_CAPACITY_ERROR_CODE}' in str(exc)
+                if not is_capacity_error or attempt == attempts:
+                    raise
+                time.sleep(_RETRY_DELAYS_SECONDS[attempt - 1])
 
         on_progress("saving result")
         if content_type.startswith("image/"):
