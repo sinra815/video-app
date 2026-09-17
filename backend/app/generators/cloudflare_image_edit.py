@@ -17,10 +17,14 @@ generally available.
 
 REST call: POST https://api.cloudflare.com/client/v4/accounts/{account_id}
 /ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0 with
-{"image_b64": <base64 source image>, "prompt": ..., "strength": ...}.
-Cloudflare's docs are inconsistent about whether the response is the raw
-image bytes (Content-Type: image/*) or a JSON envelope {"result":
-{"image": <base64>}, "success": true}, so both are handled here.
+{"image": [<raw source image bytes as ints 0-255>], "prompt": ...,
+"strength": ...}. The docs also list an "image_b64" field, but a real call
+using it failed with 400 `{"code": 3030, "message": "input tensor `image`
+is not present in the model"}` - this deployed model only actually wires
+up the "image" byte-array field, not "image_b64", despite what the docs
+say. The response is either the raw image bytes (Content-Type: image/*)
+or a JSON envelope {"result": {"image": <base64>}, "success": true}, so
+both are handled here.
 """
 import base64
 import json
@@ -79,11 +83,11 @@ class CloudflareImageEditGenerator(VideoGenerator):
 
     def generate(self, params: dict, output_path: Path, on_progress: ProgressCallback) -> None:
         image_path = Path(params["image_path"])
-        image_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+        image_bytes = list(image_path.read_bytes())
 
         on_progress("submitting job to Cloudflare Workers AI")
         content_type, raw = _run({
-            "image_b64": image_b64,
+            "image": image_bytes,
             "prompt": params["prompt"],
             "strength": _STRENGTH,
         })
