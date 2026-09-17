@@ -6,7 +6,6 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [duration, setDuration] = useState(4);
   const [gpu, setGpu] = useState("T4");
-  const [notifyEmail, setNotifyEmail] = useState(() => localStorage.getItem("notifyEmail") || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -19,13 +18,11 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
     setBusy(true);
     setError(null);
     try {
-      if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
       const job = await createAiJob({
         prompt,
         negative_prompt: negativePrompt || null,
         duration_seconds: Number(duration),
         gpu,
-        notify_email: notifyEmail || null,
       });
       onJobCreated(job);
     } catch (err) {
@@ -68,6 +65,7 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
           길이(초)
           <input
             type="number"
+            inputMode="numeric"
             min="1"
             max="10"
             step="1"
@@ -84,16 +82,6 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
           </select>
         </label>
       </div>
-
-      <label>
-        완료 시 알림 받을 이메일 (선택)
-        <input
-          type="email"
-          placeholder="you@example.com"
-          value={notifyEmail}
-          onChange={(e) => setNotifyEmail(e.target.value)}
-        />
-      </label>
 
       {error && <p className="error-text">{error}</p>}
 

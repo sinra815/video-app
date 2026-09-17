@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import colab_client, config
+from . import colab_client, config, translate
 from .jobs import job_store
 from .models import AiImageToVideoParams, AiTextToVideoParams, Job, JobMode, SlideshowParams
 
@@ -56,7 +56,6 @@ class SlideshowJobRequest(BaseModel):
     transition_seconds: float = 0.8
     resolution: str = "1280x720"
     fps: int = 30
-    notify_email: Optional[str] = None
 
 
 class AiJobRequest(BaseModel):
@@ -66,7 +65,6 @@ class AiJobRequest(BaseModel):
     fps: int = 8
     resolution: str = "512x512"
     gpu: str = "T4"
-    notify_email: Optional[str] = None
 
 
 class AiImageToVideoJobRequest(BaseModel):
@@ -78,7 +76,6 @@ class AiImageToVideoJobRequest(BaseModel):
     prompt: str
     negative_prompt: Optional[str] = None
     duration_seconds: float = 5.0
-    notify_email: Optional[str] = None
 
 
 def _resolve_upload(file_id: str) -> Path:
@@ -153,13 +150,17 @@ def create_slideshow_job(req: SlideshowJobRequest) -> Job:
         resolution=req.resolution,
         fps=req.fps,
     )
-    return job_store.create(JobMode.SLIDESHOW, params.model_dump(), notify_email=req.notify_email)
+    return job_store.create(JobMode.SLIDESHOW, params.model_dump())
 
 
 @app.post("/api/jobs/ai", response_model=Job)
 def create_ai_job(req: AiJobRequest) -> Job:
-    params = AiTextToVideoParams(**req.model_dump(exclude={"notify_email"}))
-    return job_store.create(JobMode.AI_TEXT_TO_VIDEO, params.model_dump(), notify_email=req.notify_email)
+    data = req.model_dump()
+    data["prompt"] = translate.to_english(data["prompt"])
+    if data.get("negative_prompt"):
+        data["negative_prompt"] = translate.to_english(data["negative_prompt"])
+    params = AiTextToVideoParams(**data)
+    return job_store.create(JobMode.AI_TEXT_TO_VIDEO, params.model_dump())
 
 
 @app.post("/api/jobs/ai-image-to-video", response_model=Job)
@@ -173,11 +174,11 @@ def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
 
     params = AiImageToVideoParams(
         image_path=str(image_path),
-        prompt=req.prompt,
-        negative_prompt=req.negative_prompt,
+        prompt=translate.to_english(req.prompt),
+        negative_prompt=translate.to_english(req.negative_prompt) if req.negative_prompt else None,
         duration_seconds=req.duration_seconds,
     )
-    return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump(), notify_email=req.notify_email)
+    return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump())
 
 
 @app.get("/api/jobs", response_model=list[Job])

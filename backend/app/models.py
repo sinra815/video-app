@@ -51,7 +51,6 @@ class Job(BaseModel):
     progress: str = "queued"
     error: Optional[str] = None
     output_path: Optional[str] = None
-    notify_email: Optional[str] = None
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
 

@@ -7,7 +7,6 @@ export default function SlideshowForm({ onJobCreated }) {
   const [secondsPerImage, setSecondsPerImage] = useState(3);
   const [transitionSeconds, setTransitionSeconds] = useState(0.8);
   const [resolution, setResolution] = useState("1280x720");
-  const [notifyEmail, setNotifyEmail] = useState(() => localStorage.getItem("notifyEmail") || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -23,14 +22,12 @@ export default function SlideshowForm({ onJobCreated }) {
       const imageUploads = await Promise.all(images.map((f) => uploadFile(f)));
       const audioUpload = audio ? await uploadFile(audio) : null;
 
-      if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
       const job = await createSlideshowJob({
         image_file_ids: imageUploads.map((u) => u.file_id),
         audio_file_id: audioUpload ? audioUpload.file_id : null,
         seconds_per_image: Number(secondsPerImage),
         transition_seconds: Number(transitionSeconds),
         resolution,
-        notify_email: notifyEmail || null,
       });
       onJobCreated(job);
     } catch (err) {
@@ -63,6 +60,7 @@ export default function SlideshowForm({ onJobCreated }) {
           이미지당 표시 시간(초)
           <input
             type="number"
+            inputMode="decimal"
             min="0.5"
             step="0.5"
             value={secondsPerImage}
@@ -73,6 +71,7 @@ export default function SlideshowForm({ onJobCreated }) {
           전환 시간(초)
           <input
             type="number"
+            inputMode="decimal"
             min="0"
             step="0.1"
             value={transitionSeconds}
@@ -88,16 +87,6 @@ export default function SlideshowForm({ onJobCreated }) {
           <option value="1920x1080">1920x1080 (Full HD)</option>
           <option value="854x480">854x480 (SD)</option>
         </select>
-      </label>
-
-      <label>
-        완료 시 알림 받을 이메일 (선택)
-        <input
-          type="email"
-          placeholder="you@example.com"
-          value={notifyEmail}
-          onChange={(e) => setNotifyEmail(e.target.value)}
-        />
       </label>
 
       {error && <p className="error-text">{error}</p>}

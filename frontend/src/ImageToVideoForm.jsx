@@ -6,7 +6,6 @@ export default function ImageToVideoForm({ onJobCreated }) {
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [duration, setDuration] = useState(5);
-  const [notifyEmail, setNotifyEmail] = useState(() => localStorage.getItem("notifyEmail") || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -24,13 +23,11 @@ export default function ImageToVideoForm({ onJobCreated }) {
     setError(null);
     try {
       const upload = await uploadFile(image);
-      if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
       const job = await createImageToVideoJob({
         image_file_id: upload.file_id,
         prompt,
         negative_prompt: negativePrompt || null,
         duration_seconds: Number(duration),
-        notify_email: notifyEmail || null,
       });
       onJobCreated(job);
     } catch (err) {
@@ -42,6 +39,12 @@ export default function ImageToVideoForm({ onJobCreated }) {
 
   return (
     <form className="panel" onSubmit={handleSubmit}>
+      <p className="notice">
+        이 기능은 <a href="https://magichour.ai" target="_blank" rel="noreferrer">Magic Hour</a>{" "}
+        무료 크레딧으로 동작합니다. 크레딧이 부족해지면 매일 한 번 magichour.ai에 접속해서 출석
+        포인트를 받아두세요.
+      </p>
+
       <label>
         사진
         <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files[0] ?? null)} />
@@ -71,21 +74,12 @@ export default function ImageToVideoForm({ onJobCreated }) {
         길이(초)
         <input
           type="number"
+          inputMode="numeric"
           min="1"
           max="10"
           step="1"
           value={duration}
           onChange={(e) => setDuration(e.target.value)}
-        />
-      </label>
-
-      <label>
-        완료 시 알림 받을 이메일 (선택)
-        <input
-          type="email"
-          placeholder="you@example.com"
-          value={notifyEmail}
-          onChange={(e) => setNotifyEmail(e.target.value)}
         />
       </label>
 

@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import AiForm from "./AiForm.jsx";
 import { getHealth } from "./api";
+import ChangePinForm from "./ChangePinForm.jsx";
 import ImageToVideoForm from "./ImageToVideoForm.jsx";
 import JobHistory from "./JobHistory.jsx";
 import JobStatus from "./JobStatus.jsx";
+import PinLock from "./PinLock.jsx";
 import SlideshowForm from "./SlideshowForm.jsx";
 
 export default function App() {
+  const [unlocked, setUnlocked] = useState(false);
+  const [showChangePin, setShowChangePin] = useState(false);
   const [mode, setMode] = useState("slideshow");
   const [job, setJob] = useState(null);
   const [colabAvailable, setColabAvailable] = useState(false);
@@ -17,14 +21,23 @@ export default function App() {
       .catch(() => setColabAvailable(false));
   }, []);
 
+  if (!unlocked) {
+    return <PinLock onUnlock={() => setUnlocked(true)} />;
+  }
+
   return (
     <div className="app">
       <header>
         <h1>동영상 생성기</h1>
         <p className="subtitle">이미지 슬라이드쇼, AI 텍스트-투-비디오, 또는 사진+프롬프트로 동영상을 만드세요.</p>
+        <button type="button" className="link-button" onClick={() => setShowChangePin(true)}>
+          비밀번호 변경
+        </button>
       </header>
 
-      {!job && (
+      {showChangePin && <ChangePinForm onClose={() => setShowChangePin(false)} />}
+
+      {!showChangePin && !job && (
         <>
           <nav className="tabs">
             <button
@@ -60,7 +73,7 @@ export default function App() {
         </>
       )}
 
-      {job && <JobStatus job={job} onReset={() => setJob(null)} />}
+      {!showChangePin && job && <JobStatus job={job} onReset={() => setJob(null)} />}
     </div>
   );
 }

@@ -22,6 +22,17 @@ A web app for generating videos two ways:
 - Backend: FastAPI (Python), background job queue via a thread pool
 - Frontend: React + Vite
 
+## PIN lock
+
+The frontend shows a 4-digit PIN screen before the app itself — since this
+is deployed publicly reachable (so it works from a phone anywhere) but only
+meant for one person's use, and each generation spends real Magic Hour
+credits. The PIN is client-side only (`frontend/src/pin.js`, stored in
+`localStorage`), not a real auth system — good enough to stop a random
+visitor with the URL, not a determined attacker. Default PIN is `2848`;
+change it from the "비밀번호 변경" link in the app header (asks for the
+current PIN, then a new 4-digit one).
+
 ## Colab integration status
 
 **Live and working** on the deployed backend (verified end-to-end against a
@@ -164,34 +175,6 @@ service for the backend, and a static site for the frontend.
    the backend.
 5. Open the frontend URL on your phone — it works from any network, not just
    the same Wi-Fi as your computer.
-
-## Email notifications on job completion
-
-Each generation form has an optional "notify email" field. When set, the
-backend emails that address once the job finishes — the generated video is
-attached directly (rather than a download link) so it isn't lost if the
-free-tier instance restarts before you check it; only if the video is too
-large to attach (>20MB) does it fall back to a link, which requires
-`PUBLIC_BASE_URL` to be set. On failure, the email includes the error.
-
-This needs an SMTP relay configured via env vars on the backend service (see
-[`app/config.py`](backend/app/config.py) and
-[`app/email_notify.py`](backend/app/email_notify.py)) — notifications are
-silently skipped if `SMTP_HOST` isn't set:
-
-- `SMTP_HOST`, `SMTP_PORT` (defaults to 587), `SMTP_USER`, `SMTP_PASSWORD`,
-  `SMTP_FROM` (defaults to `SMTP_USER`).
-- `PUBLIC_BASE_URL` — this backend's own public URL (e.g.
-  `https://video-app-backend-idmf.onrender.com`, no trailing slash), only
-  used for the oversized-video fallback link.
-
-Works with any SMTP provider. For Gmail: `SMTP_HOST=smtp.gmail.com`,
-`SMTP_PORT=587`, `SMTP_USER` = your Gmail address, `SMTP_PASSWORD` = a
-[Google App Password](https://myaccount.google.com/apppasswords) (a regular
-account password won't work with 2FA enabled, which Google requires for App
-Passwords anyway). Set these as Render environment variables on the backend
-service (Environment tab) — same place as `ALLOWED_ORIGINS`, no secret file
-needed since these aren't multi-line like the Colab token — then redeploy.
 
 **Caveats on Render's free tier:**
 
