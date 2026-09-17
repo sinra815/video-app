@@ -7,7 +7,6 @@ then pulls back with `colab download`.
 """
 import base64
 import io
-import os
 
 import torch
 from diffusers import LTXImageToVideoPipeline
@@ -18,11 +17,19 @@ from PIL import Image
 # can be slow enough to time out before the ~20GB of weights finish
 # downloading (confirmed against a real run) - each job is a fresh Colab VM
 # with no persistent cache, so this download happens every time.
-hf_token = {hf_token!r}
-if hf_token:
-    os.environ["HF_TOKEN"] = hf_token
+#
+# Passed explicitly to from_pretrained rather than via the HF_TOKEN env var:
+# inside a real Colab runtime, huggingface_hub instead tries to pull a token
+# from Colab's own "Secrets" panel (google.colab.userdata) and that lookup
+# hangs/times out when there's no interactive Colab UI to grant it (as here,
+# via `colab exec`) - confirmed against a real run, where requests stayed
+# anonymous even with HF_TOKEN set in the environment. An explicit token
+# argument takes precedence over all of that autodetection.
+hf_token = {hf_token!r} or None
 
-pipe = LTXImageToVideoPipeline.from_pretrained("Lightricks/LTX-Video", torch_dtype=torch.bfloat16)
+pipe = LTXImageToVideoPipeline.from_pretrained(
+    "Lightricks/LTX-Video", torch_dtype=torch.bfloat16, token=hf_token
+)
 # The T5-XXL text encoder alone is ~11B params; offload idle submodules to
 # CPU instead of pipe.to("cuda") so the full pipeline fits a T4's 16GB.
 pipe.enable_model_cpu_offload()
