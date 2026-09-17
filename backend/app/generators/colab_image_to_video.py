@@ -16,7 +16,11 @@ _TEMPLATE_PATH = Path(__file__).parent / "colab_image_to_video_template.py"
 # headroom to run at native resolution, which noticeably improves output
 # quality since this model degrades outside its trained scale.
 _GPU_PROFILES = {
-    "T4": {"height": 512, "width": 896, "cpu_offload": True},
+    # 512x896 (the original T4 fallback) is only ~51% of native pixel count -
+    # a big, untested jump down from the point that actually OOM'd (native,
+    # 100%). 576x1024 (~66% of native) is a real attempt to claw back some of
+    # that unused headroom; if it OOMs, step back down.
+    "T4": {"height": 576, "width": 1024, "cpu_offload": True},
     "L4": {"height": 704, "width": 1280, "cpu_offload": True},
     "A100": {"height": 704, "width": 1280, "cpu_offload": False},
 }
