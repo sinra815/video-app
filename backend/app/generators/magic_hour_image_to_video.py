@@ -75,6 +75,11 @@ def _upload_image(image_path: Path) -> str:
     return item["file_path"]
 
 
+def get_account() -> dict:
+    """Current credit balance and subscription details (GET /v1/account)."""
+    return _request("GET", "/account")
+
+
 def _extract_download_url(project: dict) -> str:
     downloads = project.get("downloads") or []
     if not downloads:

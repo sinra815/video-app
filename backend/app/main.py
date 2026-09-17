@@ -14,6 +14,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import colab_client, config, translate
+from .generators import magic_hour_image_to_video
+from .generators.magic_hour_image_to_video import MagicHourError
 from .jobs import job_store
 from .models import AiImageToVideoParams, AiTextToVideoParams, Job, JobMode, SlideshowParams
 
@@ -37,6 +39,29 @@ def health() -> dict:
         "colab_cli_available": colab_client.is_available(),
         "magic_hour_configured": bool(config.MAGIC_HOUR_API_KEY),
     }
+
+
+# Image-to-video generation providers, keyed by the id the frontend sends
+# back in AiImageToVideoJobRequest.provider. Add an entry here (plus a
+# matching branch in create_ai_image_to_video_job) when a second provider
+# (e.g. fal.ai) is wired up.
+_IMAGE_TO_VIDEO_PROVIDERS = {"magic_hour": "Magic Hour"}
+
+
+@app.get("/api/providers")
+def list_providers() -> list[dict]:
+    providers = []
+    for provider_id, label in _IMAGE_TO_VIDEO_PROVIDERS.items():
+        entry = {"id": provider_id, "label": label, "configured": False, "credits": None, "error": None}
+        if provider_id == "magic_hour":
+            entry["configured"] = bool(config.MAGIC_HOUR_API_KEY)
+            if entry["configured"]:
+                try:
+                    entry["credits"] = magic_hour_image_to_video.get_account().get("credits")
+                except MagicHourError as exc:
+                    entry["error"] = str(exc)
+        providers.append(entry)
+    return providers
 
 
 @app.post("/api/uploads")
@@ -76,6 +101,7 @@ class AiImageToVideoJobRequest(BaseModel):
     prompt: str
     negative_prompt: Optional[str] = None
     duration_seconds: float = 5.0
+    provider: str = "magic_hour"
 
 
 def _resolve_upload(file_id: str) -> Path:
@@ -165,6 +191,9 @@ def create_ai_job(req: AiJobRequest) -> Job:
 
 @app.post("/api/jobs/ai-image-to-video", response_model=Job)
 def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
+    if req.provider not in _IMAGE_TO_VIDEO_PROVIDERS:
+        raise HTTPException(400, f"Unknown provider: {req.provider}")
+
     if req.image_file_id:
         image_path = _resolve_upload(req.image_file_id)
     elif req.image_url:

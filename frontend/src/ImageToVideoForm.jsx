@@ -1,13 +1,21 @@
-import { useState } from "react";
-import { createImageToVideoJob, uploadFile } from "./api";
+import { useEffect, useState } from "react";
+import { createImageToVideoJob, getProviders, uploadFile } from "./api";
 
 export default function ImageToVideoForm({ onJobCreated }) {
   const [image, setImage] = useState(null);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [duration, setDuration] = useState(5);
+  const [providers, setProviders] = useState([]);
+  const [provider, setProvider] = useState("magic_hour");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    getProviders()
+      .then(setProviders)
+      .catch(() => setProviders([]));
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -28,6 +36,7 @@ export default function ImageToVideoForm({ onJobCreated }) {
         prompt,
         negative_prompt: negativePrompt || null,
         duration_seconds: Number(duration),
+        provider,
       });
       onJobCreated(job);
     } catch (err) {
@@ -37,8 +46,23 @@ export default function ImageToVideoForm({ onJobCreated }) {
     }
   }
 
+  const selected = providers.find((p) => p.id === provider);
+
   return (
     <form className="panel" onSubmit={handleSubmit}>
+      <label>
+        생성 API
+        <select value={provider} onChange={(e) => setProvider(e.target.value)}>
+          {providers.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+              {p.configured ? ` (크레딧 ${p.credits ?? "확인 실패"})` : " (설정 안 됨)"}
+            </option>
+          ))}
+        </select>
+      </label>
+      {selected?.error && <p className="error-text">크레딧 조회 실패: {selected.error}</p>}
+
       <p className="notice">
         이 기능은 <a href="https://magichour.ai" target="_blank" rel="noreferrer">Magic Hour</a>{" "}
         무료 크레딧으로 동작합니다. 크레딧이 부족해지면 매일 한 번 magichour.ai에 접속해서 출석
