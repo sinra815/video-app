@@ -1,3 +1,9 @@
+import ipaddress
+import mimetypes
+import socket
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -60,7 +66,11 @@ class AiJobRequest(BaseModel):
 
 
 class AiImageToVideoJobRequest(BaseModel):
-    image_file_id: str
+    image_file_id: Optional[str] = None
+    # Alternative to uploading a file: the server fetches the source image
+    # itself. Useful when the client's network blocks outbound file uploads
+    # but the job request (a small JSON body) still gets through.
+    image_url: Optional[str] = None
     prompt: str
     negative_prompt: Optional[str] = None
     duration_seconds: float = 2.0
@@ -74,6 +84,59 @@ def _resolve_upload(file_id: str) -> Path:
     if not path.exists():
         raise HTTPException(404, f"Unknown uploaded file: {file_id}")
     return path
+
+
+MAX_IMAGE_URL_BYTES = 20 * 1024 * 1024
+
+
+def _is_public_hostname(hostname: str) -> bool:
+    """Reject hostnames that resolve to non-public addresses (SSRF guard).
+
+    Blocks the server from being used to reach private networks, loopback,
+    link-local, or cloud metadata endpoints (e.g. 169.254.169.254) via a
+    user-supplied image_url.
+    """
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return False
+    return all(
+        not (ip := ipaddress.ip_address(info[4][0])).is_private
+        and not ip.is_loopback
+        and not ip.is_link_local
+        and not ip.is_reserved
+        and not ip.is_multicast
+        and not ip.is_unspecified
+        for info in infos
+    )
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def _download_image_url(url: str) -> Path:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "image_url must be http:// or https://")
+    if not parsed.hostname or not _is_public_hostname(parsed.hostname):
+        raise HTTPException(400, "image_url must point to a public address")
+
+    opener = urllib.request.build_opener(_NoRedirect)
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "video-app/1.0"})
+        with opener.open(req, timeout=20) as resp:
+            content_type = resp.headers.get("Content-Type", "").split(";")[0].strip()
+            data = resp.read(MAX_IMAGE_URL_BYTES + 1)
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise HTTPException(400, f"Failed to fetch image_url: {exc}")
+    if len(data) > MAX_IMAGE_URL_BYTES:
+        raise HTTPException(400, "image_url content exceeds 20MB limit")
+    suffix = mimetypes.guess_extension(content_type) or ".jpg"
+    dest = config.UPLOADS_DIR / f"{uuid.uuid4().hex}{suffix}"
+    dest.write_bytes(data)
+    return dest
 
 
 @app.post("/api/jobs/slideshow", response_model=Job)
@@ -99,8 +162,15 @@ def create_ai_job(req: AiJobRequest) -> Job:
 
 @app.post("/api/jobs/ai-image-to-video", response_model=Job)
 def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
+    if req.image_file_id:
+        image_path = _resolve_upload(req.image_file_id)
+    elif req.image_url:
+        image_path = _download_image_url(req.image_url)
+    else:
+        raise HTTPException(400, "image_file_id or image_url is required")
+
     params = AiImageToVideoParams(
-        image_path=str(_resolve_upload(req.image_file_id)),
+        image_path=str(image_path),
         prompt=req.prompt,
         negative_prompt=req.negative_prompt,
         duration_seconds=req.duration_seconds,
