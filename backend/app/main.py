@@ -32,7 +32,11 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok", "colab_cli_available": colab_client.is_available()}
+    return {
+        "status": "ok",
+        "colab_cli_available": colab_client.is_available(),
+        "hf_token_configured": bool(config.HF_TOKEN),
+    }
 
 
 @app.post("/api/uploads")
