@@ -37,11 +37,16 @@ SMTP_FROM = os.environ.get("SMTP_FROM", "") or SMTP_USER
 # the generated video is too large to attach directly.
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
 
-# Hugging Face access token (read-only scope is enough), used so the Colab
-# session's model download isn't rate-limited as an anonymous request. Each
-# image-to-video job spins up a fresh Colab VM with no persistent cache, so
-# it re-downloads the ~20GB LTX-Video + T5-XXL weights every time - slow
-# enough anonymously that a job can time out before it even starts inference
-# (confirmed against a real run). Get a token at
-# https://huggingface.co/settings/tokens.
+# Magic Hour (magichour.ai) API key, used for image-to-video generation via
+# their hosted API instead of self-hosting. Every open image-to-video model
+# tried (I2VGenXL, LTX-Video, CogVideoX) uses an ~11B-parameter T5-XXL text
+# encoder that has to be re-downloaded (tens of GB) on every ephemeral Colab
+# job, and repeatedly timed out in practice even after raising timeouts and
+# fixing HF auth. Get a free key (trial credits, no card required) at
+# https://magichour.ai/developer.
+MAGIC_HOUR_API_KEY = os.environ.get("MAGIC_HOUR_API_KEY", "")
+
+# Hugging Face access token (read-only scope is enough). No longer used by
+# image-to-video (see MAGIC_HOUR_API_KEY above) but still relevant if the
+# text-to-video Colab path (colab_ai.py) ever needs the same fix.
 HF_TOKEN = os.environ.get("HF_TOKEN", "")

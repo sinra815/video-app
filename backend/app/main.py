@@ -35,7 +35,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "colab_cli_available": colab_client.is_available(),
-        "hf_token_configured": bool(config.HF_TOKEN),
+        "magic_hour_configured": bool(config.MAGIC_HOUR_API_KEY),
     }
 
 
@@ -77,9 +77,7 @@ class AiImageToVideoJobRequest(BaseModel):
     image_url: Optional[str] = None
     prompt: str
     negative_prompt: Optional[str] = None
-    duration_seconds: float = 2.0
-    fps: int = 8
-    gpu: str = "T4"
+    duration_seconds: float = 5.0
     notify_email: Optional[str] = None
 
 
@@ -178,8 +176,6 @@ def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
         prompt=req.prompt,
         negative_prompt=req.negative_prompt,
         duration_seconds=req.duration_seconds,
-        fps=req.fps,
-        gpu=req.gpu,
     )
     return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump(), notify_email=req.notify_email)
 

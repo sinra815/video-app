@@ -55,9 +55,7 @@ export default function App() {
 
           {mode === "slideshow" && <SlideshowForm onJobCreated={setJob} />}
           {mode === "ai" && <AiForm onJobCreated={setJob} colabAvailable={colabAvailable} />}
-          {mode === "image" && (
-            <ImageToVideoForm onJobCreated={setJob} colabAvailable={colabAvailable} />
-          )}
+          {mode === "image" && <ImageToVideoForm onJobCreated={setJob} />}
           {mode === "history" && <JobHistory onSelectJob={setJob} />}
         </>
       )}

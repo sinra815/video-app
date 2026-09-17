@@ -41,9 +41,7 @@ class AiImageToVideoParams(BaseModel):
     image_path: str
     prompt: str
     negative_prompt: Optional[str] = None
-    duration_seconds: float = 2.0
-    fps: int = 8
-    gpu: str = "T4"
+    duration_seconds: float = 5.0
 
 
 class Job(BaseModel):

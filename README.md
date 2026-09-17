@@ -11,8 +11,9 @@ A web app for generating videos two ways:
    running a diffusers text-to-video pipeline there, and pulling the result
    back.
 3. **AI image-to-video** — a photo + a text prompt (what motion/change to
-   apply) generates a short video via diffusers' LTX-Video pipeline
-   (`Lightricks/LTX-Video`) on the same Colab GPU lifecycle. Also supports
+   apply) generates a short video via the hosted [Magic
+   Hour](https://magichour.ai) API (see [Image-to-video via Magic
+   Hour](#image-to-video-via-magic-hour) below), not Colab. Also supports
    giving the image as a URL instead of uploading a file, since the server
    fetches it itself.
 
@@ -77,39 +78,46 @@ Colab sessions:
   identical to a successful one by exit code alone. `exec_file` now requires
   a marker string the script prints as its last line on success
   (`success_marker=`), or raises using the captured output.
-- `colab upload`'s Jupyter Contents API payload hardcodes `"chunk": 1` and
-  never sends a finalizing chunk, leaving the remote file
-  truncated/unreadable (`colab upload` itself reports success). Worked
-  around in `ColabImageToVideoGenerator` by embedding the source image as
-  base64 directly in the generated script instead of uploading it.
-- Image-to-video originally used `I2VGenXLPipeline` (2023, deprecated
-  upstream). Even after tuning resolution up from an initial safe fallback
-  (512x896) to reclaim unused T4 headroom (576x1024, confirmed to run
-  without OOM), a real generation showed severe temporal instability: a
-  coherent first frame that visibly collapsed into gray noise by the last
-  frame of a 16-frame clip. This wasn't a resolution problem, so raising
-  resolution further wouldn't have fixed it.
-- Switched image-to-video to `LTXImageToVideoPipeline`
-  ([Lightricks/LTX-Video](https://huggingface.co/Lightricks/LTX-Video),
-  Apache-2.0, Nov 2024) — more recent and actively maintained than
-  I2VGenXL, and documented at ~10GB VRAM for a 704x480/161-frame/50-step
-  generation, comfortably under a T4's 16GB even before scaling resolution
-  up per GPU tier (see `_GPU_PROFILES` in
-  [`colab_image_to_video.py`](backend/app/generators/colab_image_to_video.py)).
-  Its T5-XXL text encoder is ~11B params on its own, so
-  `enable_model_cpu_offload()` (in
-  [`colab_image_to_video_template.py`](backend/app/generators/colab_image_to_video_template.py))
-  is load-bearing here too, not just an optimization.
-  LTX-Video also requires `num_frames` of the form `8k+1` (its temporal VAE
-  compresses by 8x) — `_ltx_num_frames()` rounds the requested duration to
-  the nearest valid count.
-- Since each job is a fresh Colab VM with no persistent disk, LTX-Video's
-  ~20GB of weights get re-downloaded from the HF Hub every single job -
-  anonymously, that download is rate-limited enough to blow past the 1700s
-  exec timeout before inference even starts (confirmed against a real run).
-  Set `HF_TOKEN` (a free, read-only [HF access
-  token](https://huggingface.co/settings/tokens)) as a Render env var on the
-  backend service to lift that limit - see `config.HF_TOKEN`.
+## Image-to-video via Magic Hour
+
+Image-to-video used to run on the same Colab lifecycle as text-to-video —
+first `I2VGenXLPipeline` (2023, deprecated upstream), then
+`LTXImageToVideoPipeline` ([Lightricks/LTX-Video](https://huggingface.co/Lightricks/LTX-Video)),
+then `CogVideoXImageToVideoPipeline`. All three were abandoned after real
+testing, for two different reasons:
+
+- **I2VGenXL**: even after raising resolution to reclaim unused T4 headroom
+  (512x896 → 576x1024, confirmed to run without OOM), a real generation
+  showed severe temporal instability — a coherent first frame that visibly
+  collapsed into gray noise by the last frame of a 16-frame clip. Not a
+  resolution problem, so more pixels wouldn't have fixed it.
+- **LTX-Video and CogVideoX**: both use an ~11B-parameter T5-XXL text
+  encoder. Since each job is a fresh Colab VM with no persistent disk, the
+  ~20GB of combined weights gets re-downloaded from the HF Hub on *every
+  single job* — slow enough (even with an `HF_TOKEN` set, confirmed against
+  a real run) to blow past the 1700s exec timeout before inference even
+  starts. This is a structural mismatch between "huge model" and "no
+  cross-job cache," not something fixable by tuning one job's script.
+
+Image-to-video now calls the hosted [Magic Hour](https://magichour.ai) API
+instead (`app/generators/magic_hour_image_to_video.py`) — no self-hosting,
+no per-job download, no Colab GPU involved for this feature:
+
+1. Upload the source image via `POST /v1/files/upload-urls` (get a
+   presigned URL) then `PUT` the bytes to it.
+2. `POST /v1/image-to-video` with the uploaded `file_path`, the prompt, and
+   `end_seconds`. Neither `model` nor `resolution` is passed explicitly, so
+   Magic Hour uses whatever the account's plan defaults to.
+3. Poll `GET /v1/video-projects/{id}` until `status` is `complete` (or
+   `error`/`canceled`), then download the result from `downloads[0]`.
+
+Set `MAGIC_HOUR_API_KEY` as a backend env var — get a free key (trial
+credits, no card required) at <https://magichour.ai/developer>. Those are
+one-time signup credits, not a renewing daily allowance, so sustained use
+eventually needs a paid plan. (Checked alternatives: Luma/Kling/Hailuo's
+own developer APIs have no free tier at all; core.today advertises daily
+free credits but its cheapest image-to-video model costs more than the
+entire daily allowance, so it can't complete even one generation for free.)
 
 ## Running locally
 
@@ -201,7 +209,11 @@ needed since these aren't multi-line like the Colab token — then redeploy.
 - Colab's free tier has unpredictable GPU availability and rate limits meant
   for interactive notebook use, not a production backend — expect occasional
   `colab new` failures under real traffic. Colab Pro/Pro+ is more reliable for
-  sustained automated use.
+  sustained automated use. (This only affects AI text-to-video — image-to-video
+  uses Magic Hour, not Colab.)
+- Magic Hour's free-tier credits are a one-time signup grant, not a daily
+  allowance — once they run out, `ai-image-to-video` jobs will fail until the
+  account is topped up or upgraded.
 
 ## Notes for Windows developers
 
