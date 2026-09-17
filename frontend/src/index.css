@@ -34,7 +34,7 @@ header h1 {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   margin-bottom: 20px;
 }
@@ -156,6 +156,62 @@ header h1 {
   background: #fff;
   color: #333;
   border: 1px solid #d5d7dc;
+}
+
+.pin-pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 0;
+}
+
+.pin-dots {
+  display: flex;
+  gap: 16px;
+}
+
+.pin-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #d5d7dc;
+  background: #fff;
+}
+
+.pin-dot.filled {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.pin-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 260px;
+}
+
+.pin-key {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid #d5d7dc;
+  background: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.pin-key:active {
+  background: #eef2ff;
+  border-color: #2563eb;
+}
+
+.pin-key-empty {
+  visibility: hidden;
+  cursor: default;
 }
 
 .job-status {

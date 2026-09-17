@@ -6,12 +6,11 @@ import ImageToVideoForm from "./ImageToVideoForm.jsx";
 import JobHistory from "./JobHistory.jsx";
 import JobStatus from "./JobStatus.jsx";
 import PinLock from "./PinLock.jsx";
-import SlideshowForm from "./SlideshowForm.jsx";
 
 export default function App() {
   const [unlocked, setUnlocked] = useState(false);
   const [showChangePin, setShowChangePin] = useState(false);
-  const [mode, setMode] = useState("slideshow");
+  const [mode, setMode] = useState("image");
   const [job, setJob] = useState(null);
   const [colabAvailable, setColabAvailable] = useState(false);
 
@@ -29,7 +28,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>동영상 생성기</h1>
-        <p className="subtitle">이미지 슬라이드쇼, AI 텍스트-투-비디오, 또는 사진+프롬프트로 동영상을 만드세요.</p>
+        <p className="subtitle">AI 텍스트-투-비디오 또는 사진+프롬프트로 동영상을 만드세요.</p>
         <button type="button" className="link-button" onClick={() => setShowChangePin(true)}>
           비밀번호 변경
         </button>
@@ -40,12 +39,6 @@ export default function App() {
       {!showChangePin && !job && (
         <>
           <nav className="tabs">
-            <button
-              className={mode === "slideshow" ? "tab active" : "tab"}
-              onClick={() => setMode("slideshow")}
-            >
-              이미지 슬라이드쇼
-            </button>
             <button
               className={mode === "ai" ? "tab active" : "tab"}
               onClick={() => setMode("ai")}
@@ -66,7 +59,6 @@ export default function App() {
             </button>
           </nav>
 
-          {mode === "slideshow" && <SlideshowForm onJobCreated={setJob} />}
           {mode === "ai" && <AiForm onJobCreated={setJob} colabAvailable={colabAvailable} />}
           {mode === "image" && <ImageToVideoForm onJobCreated={setJob} />}
           {mode === "history" && <JobHistory onSelectJob={setJob} />}
