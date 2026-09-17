@@ -103,6 +103,13 @@ Colab sessions:
   LTX-Video also requires `num_frames` of the form `8k+1` (its temporal VAE
   compresses by 8x) — `_ltx_num_frames()` rounds the requested duration to
   the nearest valid count.
+- Since each job is a fresh Colab VM with no persistent disk, LTX-Video's
+  ~20GB of weights get re-downloaded from the HF Hub every single job -
+  anonymously, that download is rate-limited enough to blow past the 1700s
+  exec timeout before inference even starts (confirmed against a real run).
+  Set `HF_TOKEN` (a free, read-only [HF access
+  token](https://huggingface.co/settings/tokens)) as a Render env var on the
+  backend service to lift that limit - see `config.HF_TOKEN`.
 
 ## Running locally
 

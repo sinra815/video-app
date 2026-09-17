@@ -74,6 +74,7 @@ class ColabImageToVideoGenerator(VideoGenerator):
             frame_rate=_LTX_FRAME_RATE,
             height=profile["height"],
             width=profile["width"],
+            hf_token=config.HF_TOKEN,
         )
         local_script = Path(tempfile.gettempdir()) / f"colab_job_{uuid.uuid4().hex}.py"
         local_script.write_text(script, encoding="utf-8")

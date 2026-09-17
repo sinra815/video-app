@@ -7,11 +7,20 @@ then pulls back with `colab download`.
 """
 import base64
 import io
+import os
 
 import torch
 from diffusers import LTXImageToVideoPipeline
 from diffusers.utils import export_to_video
 from PIL import Image
+
+# An anonymous (unauthenticated) request to the HF Hub is rate-limited and
+# can be slow enough to time out before the ~20GB of weights finish
+# downloading (confirmed against a real run) - each job is a fresh Colab VM
+# with no persistent cache, so this download happens every time.
+hf_token = {hf_token!r}
+if hf_token:
+    os.environ["HF_TOKEN"] = hf_token
 
 pipe = LTXImageToVideoPipeline.from_pretrained("Lightricks/LTX-Video", torch_dtype=torch.bfloat16)
 # The T5-XXL text encoder alone is ~11B params; offload idle submodules to

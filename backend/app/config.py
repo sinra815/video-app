@@ -36,3 +36,12 @@ SMTP_FROM = os.environ.get("SMTP_FROM", "") or SMTP_USER
 # no trailing slash), used to build a download link in completion emails when
 # the generated video is too large to attach directly.
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+
+# Hugging Face access token (read-only scope is enough), used so the Colab
+# session's model download isn't rate-limited as an anonymous request. Each
+# image-to-video job spins up a fresh Colab VM with no persistent cache, so
+# it re-downloads the ~20GB LTX-Video + T5-XXL weights every time - slow
+# enough anonymously that a job can time out before it even starts inference
+# (confirmed against a real run). Get a token at
+# https://huggingface.co/settings/tokens.
+HF_TOKEN = os.environ.get("HF_TOKEN", "")
