@@ -68,20 +68,21 @@ def _request(method: str, url: str, body: Optional[dict] = None) -> dict:
 
 
 def get_credits() -> Optional[float]:
-    """Best-effort credit balance (GET /v1/account/billing?expand=credits).
+    """Current USD credit balance (GET /v1/account/billing?expand=credits).
 
-    The exact response shape wasn't independently confirmable (fal's docs
-    domains are unreachable from this dev environment), so this parses
-    defensively and returns None rather than raising on an unrecognized
-    shape - the caller surfaces None as "확인 실패" rather than crashing.
+    Confirmed against fal's actual docs (fal-d8505a2e.mintlify.app - the
+    previous version of this function had guessed at both the domain and
+    the response shape because fal's main docs domains were unreachable
+    from that dev environment, and got both wrong: it hit rest.fal.ai
+    instead of api.fal.ai, and looked for a bare number under "credits"
+    instead of "credits": {"current_balance": ..., "currency": ...}. That
+    404'd every time in production (confirmed against the real API), so
+    the balance never displayed.
     """
-    data = _request("GET", f"{_REST_BASE}/v1/account/billing?expand=credits")
+    data = _request("GET", "https://api.fal.ai/v1/account/billing?expand=credits")
     credits = data.get("credits")
     if isinstance(credits, dict):
-        for key in ("balance", "amount", "remaining", "value"):
-            if key in credits:
-                return credits[key]
-        return None
+        return credits.get("current_balance")
     return credits
 
 
