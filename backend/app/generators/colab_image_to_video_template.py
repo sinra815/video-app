@@ -20,8 +20,13 @@ pipe = I2VGenXLPipeline.from_pretrained(
 )
 # The full model doesn't comfortably fit in a T4's 16GB VRAM alongside
 # activations for 50 inference steps; offload submodules to CPU when idle
-# instead of pipe.to("cuda"), matching diffusers' own I2VGenXL example.
-pipe.enable_model_cpu_offload()
+# instead of pipe.to("cuda"), matching diffusers' own I2VGenXL example. GPUs
+# with more headroom (L4/A100) skip offload for speed - see _GPU_PROFILES in
+# colab_image_to_video.py.
+if {use_cpu_offload}:
+    pipe.enable_model_cpu_offload()
+else:
+    pipe.to("cuda")
 # Extra memory headroom: slice VAE decode and attention so peak activation
 # memory doesn't scale with the full batch at once.
 pipe.enable_vae_slicing()
@@ -37,19 +42,16 @@ generator = torch.manual_seed(8888)
 frames = pipe(
     prompt=prompt,
     image=image,
-    # The pipeline's own defaults (height=704, width=1280) produce latents
-    # too large for a T4's 16GB once num_frames is folded into the batch
-    # dim for the temporal transformer (confirmed OOM mid-forward, inside
-    # transformer_in's feed-forward block - but the overshoot was modest,
-    # ~3.4GiB against a ~14.5GiB budget). An earlier fix cut all the way to
-    # 320x576 to be safe, but going that far below the model's trained
-    # resolution introduced visible morphing/warping artifacts (confirmed
-    # against a real generation) - this model degrades noticeably outside
-    # its native scale. Halving native resolution (rather than quartering
-    # it) keeps proportionally much more headroom against that ~23%
-    # overshoot while staying far closer to the trained scale.
-    height=512,
-    width=896,
+    # Resolution is picked per-GPU (see _GPU_PROFILES in
+    # colab_image_to_video.py): T4's 16GB can't fit the pipeline's native
+    # height=704, width=1280 alongside inference activations (confirmed OOM
+    # mid-forward, inside transformer_in's feed-forward block - overshoot
+    # was ~3.4GiB against a ~14.5GiB budget), so it falls back to a reduced
+    # resolution. Below that native scale this model shows visible
+    # morphing/warping (confirmed against a real generation at 320x576), so
+    # GPUs with enough VRAM (L4/A100) run at native resolution instead.
+    height={height},
+    width={width},
     negative_prompt=negative_prompt or None,
     num_inference_steps=50,
     num_frames=num_frames,

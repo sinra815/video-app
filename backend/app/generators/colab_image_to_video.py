@@ -8,6 +8,19 @@ from .base import ProgressCallback, VideoGenerator
 
 _TEMPLATE_PATH = Path(__file__).parent / "colab_image_to_video_template.py"
 
+# I2VGenXL's native resolution is height=704, width=1280. A T4's 16GB VRAM
+# can't fit that alongside inference activations even with CPU offload
+# (confirmed OOM, ~3.4GiB over a ~14.5GiB budget), so it runs at a reduced
+# resolution instead - see the "raised resolution" note in
+# colab_image_to_video_template.py. L4 (24GB) and A100 (40GB+) have enough
+# headroom to run at native resolution, which noticeably improves output
+# quality since this model degrades outside its trained scale.
+_GPU_PROFILES = {
+    "T4": {"height": 512, "width": 896, "cpu_offload": True},
+    "L4": {"height": 704, "width": 1280, "cpu_offload": True},
+    "A100": {"height": 704, "width": 1280, "cpu_offload": False},
+}
+
 
 class ColabImageToVideoGenerator(VideoGenerator):
     """Image + text prompt -> short video, offloaded to a Google Colab GPU runtime.
@@ -37,18 +50,24 @@ class ColabImageToVideoGenerator(VideoGenerator):
 
         image_b64 = base64.b64encode(Path(params["image_path"]).read_bytes()).decode("ascii")
 
+        gpu = params.get("gpu", config.COLAB_DEFAULT_GPU)
+        profile = _GPU_PROFILES.get(gpu, _GPU_PROFILES["T4"])
+
         script = _TEMPLATE_PATH.read_text(encoding="utf-8").format(
             image_b64=image_b64,
             prompt=params["prompt"],
             negative_prompt=params.get("negative_prompt") or "",
             num_frames=num_frames,
             fps=fps,
+            height=profile["height"],
+            width=profile["width"],
+            use_cpu_offload=profile["cpu_offload"],
         )
         local_script = Path(tempfile.gettempdir()) / f"colab_job_{uuid.uuid4().hex}.py"
         local_script.write_text(script, encoding="utf-8")
 
         session_name = f"{config.COLAB_SESSION_PREFIX}-{uuid.uuid4().hex[:8]}"
-        session = colab_client.ColabSession(session_name, gpu=params.get("gpu", config.COLAB_DEFAULT_GPU))
+        session = colab_client.ColabSession(session_name, gpu=gpu)
         try:
             on_progress("provisioning Colab GPU runtime")
             session.start(on_progress)
