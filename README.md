@@ -196,13 +196,23 @@ after both Magic Hour (needs a paid plan for `/ai-image-editor`, see above)
 and fal.ai (needs a topped-up balance) turned out not to be usable for free
 in practice. Cloudflare Workers AI's free plan gives **10,000 "neurons"/day
 at no cost, no card required**, running the open-weight Stable Diffusion
-v1.5 `img2img` model:
+XL `img2img` model:
 
-1. `POST https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/runwayml/stable-diffusion-v1-5-img2img`
-   with `{"image_b64": <base64 source image>, "prompt": ...}`.
+1. `POST https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0`
+   with `{"image_b64": <base64 source image>, "prompt": ..., "strength": 0.7}`.
 2. The response is either the raw image bytes (`Content-Type: image/*`) or a
    JSON envelope `{"result": {"image": <base64>}, "success": true}` —
    Cloudflare's own docs are inconsistent about which, so both are handled.
+
+**Verification status**: `@cf/runwayml/stable-diffusion-v1-5-img2img` was
+tried first (matches Cloudflare's own model-catalog wording most closely),
+but a real call against a fresh account failed with `403 {"code": 5018,
+"message": "This account is not allowed to access
+@cf/runwayml/stable-diffusion-v1-5-img2img"}` — that model has been pulled
+from general availability (its docs page 404s; only accounts grandfathered
+in before the change can still reach it). Switched to
+`stable-diffusion-xl-base-1.0`, which supports the same img2img
+image/image_b64 + strength inputs and is still generally available.
 
 No upload/poll/download round trip like the other two providers — this is a
 single synchronous request.
