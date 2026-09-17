@@ -12,7 +12,7 @@ export default function ImageToVideoForm({ onJobCreated }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getProviders()
+    getProviders("video")
       .then(setProviders)
       .catch(() => setProviders([]));
   }, []);

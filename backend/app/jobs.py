@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
 from . import config
+from .generators.cloudflare_image_edit import CloudflareImageEditGenerator
 from .generators.colab_ai import ColabAiGenerator
 from .generators.fal_image_edit import FalImageEditGenerator
 from .generators.fal_image_to_video import FalImageToVideoGenerator
@@ -29,6 +30,7 @@ _IMAGE_TO_VIDEO_GENERATORS = {
 _IMAGE_EDIT_GENERATORS = {
     "magic_hour": MagicHourImageEditGenerator(),
     "fal": FalImageEditGenerator(),
+    "cloudflare": CloudflareImageEditGenerator(),
 }
 
 # File extension for each job mode's output, since providers return

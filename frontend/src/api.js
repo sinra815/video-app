@@ -48,8 +48,8 @@ export async function createImageEditJob(payload) {
   return res.json();
 }
 
-export async function getProviders() {
-  const res = await fetch(`${BASE}/providers`);
+export async function getProviders(mode = "video") {
+  const res = await fetch(`${BASE}/providers?mode=${mode}`);
   if (!res.ok) throw new Error(`Provider list failed: ${res.status}`);
   return res.json();
 }

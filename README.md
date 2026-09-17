@@ -17,10 +17,11 @@ A web app for generating videos two ways:
    giving the image as a URL instead of uploading a file, since the server
    fetches it itself.
 4. **AI image edit** — a photo + a text prompt (what to change) returns an
-   edited still image instead of a video. Shares the same two hosted
-   providers as image-to-video (Magic Hour's `/ai-image-editor`, or fal.ai's
-   FLUX Kontext [dev]) and the same account/credit pool - pick whichever has
-   balance left in the "생성 API" selector.
+   edited still image instead of a video, via one of three providers picked
+   in the "생성 API" selector: Magic Hour's `/ai-image-editor` (needs a paid
+   plan - see caveat below), fal.ai's FLUX Kontext [dev] (needs USD credit
+   balance), or [Cloudflare Workers AI](#image-edit-via-cloudflare-workers-ai-third-provider)
+   (free, no card required - the default).
 
 ## Stack
 
@@ -142,6 +143,14 @@ current credit balance, and the image-to-video form shows a "생성 API"
 selector with the balance next to each option instead of finding out from
 a failed job.
 
+**AI Image Editor caveat**: unlike `/image-to-video`, Magic Hour's
+`/ai-image-editor` endpoint is gated behind a paid plan even with trial
+credits available - a real test job failed with `402 plan_upgrade_required`
+("Please upgrade to creator, pro, or business to create an edit with this
+model"). Not a bug in this app; Magic Hour just doesn't offer that specific
+feature on the free/trial tier. Use the Cloudflare Workers AI provider for
+image edit instead (see below).
+
 ## Image-to-video via fal.ai (second provider)
 
 Added as a second image-to-video provider alongside Magic Hour, both to
@@ -174,6 +183,46 @@ way Magic Hour was (see the `type`/`type_` bug that only showed up against
 a real call). If image-to-video via the "fal.ai (LTX-Video)" option fails,
 check the job's error message first — it's the raw API response, which
 should point at the exact mismatch.
+
+fal.ai's own account balance also ran out during testing (`403 Exhausted
+balance` on a real `/ai-image-editor`-equivalent call via FLUX Kontext), so
+image edit through this provider needs the account topped up with a small
+USD balance before it'll work — not a code bug.
+
+## Image edit via Cloudflare Workers AI (third provider)
+
+Added as a third image-edit provider (`app/generators/cloudflare_image_edit.py`)
+after both Magic Hour (needs a paid plan for `/ai-image-editor`, see above)
+and fal.ai (needs a topped-up balance) turned out not to be usable for free
+in practice. Cloudflare Workers AI's free plan gives **10,000 "neurons"/day
+at no cost, no card required**, running the open-weight Stable Diffusion
+v1.5 `img2img` model:
+
+1. `POST https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/runwayml/stable-diffusion-v1-5-img2img`
+   with `{"image_b64": <base64 source image>, "prompt": ...}`.
+2. The response is either the raw image bytes (`Content-Type: image/*`) or a
+   JSON envelope `{"result": {"image": <base64>}, "success": true}` —
+   Cloudflare's own docs are inconsistent about which, so both are handled.
+
+No upload/poll/download round trip like the other two providers — this is a
+single synchronous request.
+
+Set both `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` as backend env
+vars:
+- **Account ID**: [Cloudflare dashboard](https://dash.cloudflare.com) →
+  Workers & Pages → Overview (right-hand sidebar).
+- **API Token**: dashboard → My Profile → API Tokens → Create Token →
+  Custom Token, with the **Account / Workers AI / Read** and
+  **Account / Workers AI / Edit** permissions.
+
+**Note on content restrictions**: this uses an open-weight model with much
+lighter built-in refusal behavior than closed models (Magic Hour, Gemini)
+for ordinary edits (outfit/background/style changes on a photo), since it
+lacks their heavy safety fine-tuning. Cloudflare's own Acceptable Use
+Policy still applies at the platform level (sexual, exploitative, or
+otherwise prohibited content is not permitted regardless of provider) —
+this only reduces false-positive refusals on legitimate edits, not the
+underlying policy.
 
 ## Running locally
 

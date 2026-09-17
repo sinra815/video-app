@@ -42,3 +42,15 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "")
 # system. Get a free key (no card required, trial credits) at
 # https://fal.ai/dashboard/keys.
 FAL_API_KEY = os.environ.get("FAL_API_KEY", "")
+
+# Cloudflare Workers AI, used as an image-edit provider. Unlike Magic Hour's
+# AI Image Editor (requires a paid plan) and fal.ai's FLUX Kontext (paid
+# per-generation), Workers AI's free plan includes 10,000 "neurons"/day at
+# no cost and no card required, running an open-weight Stable Diffusion
+# model that also has much lighter built-in refusal behavior than closed
+# models for ordinary edits. Get both values from the Cloudflare dashboard:
+# CLOUDFLARE_ACCOUNT_ID from the Workers & Pages overview page, and
+# CLOUDFLARE_API_TOKEN from My Profile > API Tokens (needs the
+# "Workers AI - Read" and "Workers AI - Edit" account permissions).
+CLOUDFLARE_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")

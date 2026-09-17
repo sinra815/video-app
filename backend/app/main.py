@@ -51,34 +51,47 @@ def health() -> dict:
 
 # Hosted providers, keyed by the id the frontend sends back in
 # AiImageToVideoJobRequest.provider / AiImageEditJobRequest.provider (and
-# jobs.py dispatches on). Both image-to-video and image-edit use the same
-# two accounts/credit pools, just different endpoints per job.py's
-# _IMAGE_TO_VIDEO_GENERATORS / _IMAGE_EDIT_GENERATORS - add an entry here
-# plus a matching generator in both to wire up another provider.
-_HOSTED_PROVIDERS = {"magic_hour": "Magic Hour", "fal": "fal.ai"}
+# jobs.py dispatches on). Image-to-video and image-edit are listed
+# separately because a provider that only does one (e.g. Cloudflare Workers
+# AI only edits stills) must not be offered - and accepted - for the other.
+# Add an entry to the relevant catalog plus a matching generator in jobs.py's
+# _IMAGE_TO_VIDEO_GENERATORS / _IMAGE_EDIT_GENERATORS to wire up another
+# provider.
+_IMAGE_TO_VIDEO_PROVIDERS = {"magic_hour": "Magic Hour", "fal": "fal.ai"}
+_IMAGE_EDIT_PROVIDERS = {
+    "magic_hour": "Magic Hour",
+    "fal": "fal.ai",
+    "cloudflare": "Cloudflare Workers AI",
+}
+
+
+def _provider_entry(provider_id: str, label: str) -> dict:
+    entry = {"id": provider_id, "label": label, "configured": False, "credits": None, "error": None}
+    if provider_id == "magic_hour":
+        entry["configured"] = bool(config.MAGIC_HOUR_API_KEY)
+        if entry["configured"]:
+            try:
+                entry["credits"] = magic_hour_image_to_video.get_account().get("credits")
+            except MagicHourError as exc:
+                entry["error"] = str(exc)
+    elif provider_id == "fal":
+        entry["configured"] = bool(config.FAL_API_KEY)
+        if entry["configured"]:
+            try:
+                entry["credits"] = fal_image_to_video.get_credits()
+            except FalError as exc:
+                entry["error"] = str(exc)
+    elif provider_id == "cloudflare":
+        # Workers AI uses a daily neuron quota rather than a queryable
+        # credit balance, so there's nothing to fetch here.
+        entry["configured"] = bool(config.CLOUDFLARE_ACCOUNT_ID and config.CLOUDFLARE_API_TOKEN)
+    return entry
 
 
 @app.get("/api/providers")
-def list_providers() -> list[dict]:
-    providers = []
-    for provider_id, label in _HOSTED_PROVIDERS.items():
-        entry = {"id": provider_id, "label": label, "configured": False, "credits": None, "error": None}
-        if provider_id == "magic_hour":
-            entry["configured"] = bool(config.MAGIC_HOUR_API_KEY)
-            if entry["configured"]:
-                try:
-                    entry["credits"] = magic_hour_image_to_video.get_account().get("credits")
-                except MagicHourError as exc:
-                    entry["error"] = str(exc)
-        elif provider_id == "fal":
-            entry["configured"] = bool(config.FAL_API_KEY)
-            if entry["configured"]:
-                try:
-                    entry["credits"] = fal_image_to_video.get_credits()
-                except FalError as exc:
-                    entry["error"] = str(exc)
-        providers.append(entry)
-    return providers
+def list_providers(mode: str = "video") -> list[dict]:
+    catalog = _IMAGE_EDIT_PROVIDERS if mode == "edit" else _IMAGE_TO_VIDEO_PROVIDERS
+    return [_provider_entry(provider_id, label) for provider_id, label in catalog.items()]
 
 
 @app.post("/api/uploads")
@@ -215,7 +228,7 @@ def create_ai_job(req: AiJobRequest) -> Job:
 
 @app.post("/api/jobs/ai-image-to-video", response_model=Job)
 def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
-    if req.provider not in _HOSTED_PROVIDERS:
+    if req.provider not in _IMAGE_TO_VIDEO_PROVIDERS:
         raise HTTPException(400, f"Unknown provider: {req.provider}")
 
     if req.image_file_id:
@@ -237,7 +250,7 @@ def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
 
 @app.post("/api/jobs/ai-image-edit", response_model=Job)
 def create_ai_image_edit_job(req: AiImageEditJobRequest) -> Job:
-    if req.provider not in _HOSTED_PROVIDERS:
+    if req.provider not in _IMAGE_EDIT_PROVIDERS:
         raise HTTPException(400, f"Unknown provider: {req.provider}")
 
     if req.image_file_id:

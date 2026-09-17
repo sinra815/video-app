@@ -5,12 +5,12 @@ export default function ImageEditForm({ onJobCreated }) {
   const [image, setImage] = useState(null);
   const [prompt, setPrompt] = useState("");
   const [providers, setProviders] = useState([]);
-  const [provider, setProvider] = useState("magic_hour");
+  const [provider, setProvider] = useState("cloudflare");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getProviders()
+    getProviders("edit")
       .then(setProviders)
       .catch(() => setProviders([]));
   }, []);

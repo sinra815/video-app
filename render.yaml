@@ -15,6 +15,10 @@ services:
         sync: false
       - key: FAL_API_KEY
         sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
 
   - type: web
     name: video-app-frontend
