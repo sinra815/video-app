@@ -7,6 +7,7 @@ export default function ImageToVideoForm({ onJobCreated, colabAvailable }) {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [duration, setDuration] = useState(2);
   const [gpu, setGpu] = useState("T4");
+  const [notifyEmail, setNotifyEmail] = useState(() => localStorage.getItem("notifyEmail") || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -24,12 +25,14 @@ export default function ImageToVideoForm({ onJobCreated, colabAvailable }) {
     setError(null);
     try {
       const upload = await uploadFile(image);
+      if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
       const job = await createImageToVideoJob({
         image_file_id: upload.file_id,
         prompt,
         negative_prompt: negativePrompt || null,
         duration_seconds: Number(duration),
         gpu,
+        notify_email: notifyEmail || null,
       });
       onJobCreated(job);
     } catch (err) {
@@ -94,6 +97,16 @@ export default function ImageToVideoForm({ onJobCreated, colabAvailable }) {
           </select>
         </label>
       </div>
+
+      <label>
+        완료 시 알림 받을 이메일 (선택)
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={notifyEmail}
+          onChange={(e) => setNotifyEmail(e.target.value)}
+        />
+      </label>
 
       {error && <p className="error-text">{error}</p>}
 

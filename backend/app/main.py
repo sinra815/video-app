@@ -46,6 +46,7 @@ class SlideshowJobRequest(BaseModel):
     transition_seconds: float = 0.8
     resolution: str = "1280x720"
     fps: int = 30
+    notify_email: Optional[str] = None
 
 
 class AiJobRequest(BaseModel):
@@ -55,6 +56,7 @@ class AiJobRequest(BaseModel):
     fps: int = 8
     resolution: str = "512x512"
     gpu: str = "T4"
+    notify_email: Optional[str] = None
 
 
 class AiImageToVideoJobRequest(BaseModel):
@@ -64,6 +66,7 @@ class AiImageToVideoJobRequest(BaseModel):
     duration_seconds: float = 2.0
     fps: int = 8
     gpu: str = "T4"
+    notify_email: Optional[str] = None
 
 
 def _resolve_upload(file_id: str) -> Path:
@@ -85,13 +88,13 @@ def create_slideshow_job(req: SlideshowJobRequest) -> Job:
         resolution=req.resolution,
         fps=req.fps,
     )
-    return job_store.create(JobMode.SLIDESHOW, params.model_dump())
+    return job_store.create(JobMode.SLIDESHOW, params.model_dump(), notify_email=req.notify_email)
 
 
 @app.post("/api/jobs/ai", response_model=Job)
 def create_ai_job(req: AiJobRequest) -> Job:
-    params = AiTextToVideoParams(**req.model_dump())
-    return job_store.create(JobMode.AI_TEXT_TO_VIDEO, params.model_dump())
+    params = AiTextToVideoParams(**req.model_dump(exclude={"notify_email"}))
+    return job_store.create(JobMode.AI_TEXT_TO_VIDEO, params.model_dump(), notify_email=req.notify_email)
 
 
 @app.post("/api/jobs/ai-image-to-video", response_model=Job)
@@ -104,7 +107,7 @@ def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
         fps=req.fps,
         gpu=req.gpu,
     )
-    return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump())
+    return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump(), notify_email=req.notify_email)
 
 
 @app.get("/api/jobs/{job_id}", response_model=Job)
