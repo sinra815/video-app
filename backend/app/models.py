@@ -42,6 +42,7 @@ class AiImageToVideoParams(BaseModel):
     prompt: str
     negative_prompt: Optional[str] = None
     duration_seconds: float = 5.0
+    provider: str = "magic_hour"
 
 
 class Job(BaseModel):

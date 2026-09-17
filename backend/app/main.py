@@ -14,7 +14,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import colab_client, config, translate
-from .generators import magic_hour_image_to_video
+from .generators import fal_image_to_video, magic_hour_image_to_video
+from .generators.fal_image_to_video import FalError
 from .generators.magic_hour_image_to_video import MagicHourError
 from .jobs import job_store
 from .models import AiImageToVideoParams, AiTextToVideoParams, Job, JobMode, SlideshowParams
@@ -42,10 +43,10 @@ def health() -> dict:
 
 
 # Image-to-video generation providers, keyed by the id the frontend sends
-# back in AiImageToVideoJobRequest.provider. Add an entry here (plus a
-# matching branch in create_ai_image_to_video_job) when a second provider
-# (e.g. fal.ai) is wired up.
-_IMAGE_TO_VIDEO_PROVIDERS = {"magic_hour": "Magic Hour"}
+# back in AiImageToVideoJobRequest.provider (and jobs.py dispatches on).
+# Add an entry here (plus a matching generator in jobs.py's
+# _IMAGE_TO_VIDEO_GENERATORS) to wire up another provider.
+_IMAGE_TO_VIDEO_PROVIDERS = {"magic_hour": "Magic Hour", "fal": "fal.ai (LTX-Video)"}
 
 
 @app.get("/api/providers")
@@ -59,6 +60,13 @@ def list_providers() -> list[dict]:
                 try:
                     entry["credits"] = magic_hour_image_to_video.get_account().get("credits")
                 except MagicHourError as exc:
+                    entry["error"] = str(exc)
+        elif provider_id == "fal":
+            entry["configured"] = bool(config.FAL_API_KEY)
+            if entry["configured"]:
+                try:
+                    entry["credits"] = fal_image_to_video.get_credits()
+                except FalError as exc:
                     entry["error"] = str(exc)
         providers.append(entry)
     return providers
@@ -206,6 +214,7 @@ def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
         prompt=translate.to_english(req.prompt),
         negative_prompt=translate.to_english(req.negative_prompt) if req.negative_prompt else None,
         duration_seconds=req.duration_seconds,
+        provider=req.provider,
     )
     return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump())
 

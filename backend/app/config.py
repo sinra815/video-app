@@ -36,3 +36,9 @@ MAGIC_HOUR_API_KEY = os.environ.get("MAGIC_HOUR_API_KEY", "")
 # image-to-video (see MAGIC_HOUR_API_KEY above) but still relevant if the
 # text-to-video Colab path (colab_ai.py) ever needs the same fix.
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
+
+# fal.ai (fal.ai) API key, a second image-to-video provider alongside Magic
+# Hour - predictable per-generation USD pricing instead of an opaque credit
+# system. Get a free key (no card required, trial credits) at
+# https://fal.ai/dashboard/keys.
+FAL_API_KEY = os.environ.get("FAL_API_KEY", "")

@@ -13,6 +13,8 @@ services:
         sync: false
       - key: MAGIC_HOUR_API_KEY
         sync: false
+      - key: FAL_API_KEY
+        sync: false
 
   - type: web
     name: video-app-frontend

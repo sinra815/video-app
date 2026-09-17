@@ -5,6 +5,7 @@ from threading import Lock
 
 from . import config
 from .generators.colab_ai import ColabAiGenerator
+from .generators.fal_image_to_video import FalImageToVideoGenerator
 from .generators.magic_hour_image_to_video import MagicHourImageToVideoGenerator
 from .generators.slideshow import SlideshowGenerator
 from .models import Job, JobMode, JobStatus
@@ -12,7 +13,14 @@ from .models import Job, JobMode, JobStatus
 _GENERATORS = {
     JobMode.SLIDESHOW: SlideshowGenerator(),
     JobMode.AI_TEXT_TO_VIDEO: ColabAiGenerator(),
-    JobMode.AI_IMAGE_TO_VIDEO: MagicHourImageToVideoGenerator(),
+}
+
+# AI_IMAGE_TO_VIDEO has multiple interchangeable providers (see
+# main.py's _IMAGE_TO_VIDEO_PROVIDERS), selected per-job via params["provider"]
+# rather than a single fixed generator like the other modes above.
+_IMAGE_TO_VIDEO_GENERATORS = {
+    "magic_hour": MagicHourImageToVideoGenerator(),
+    "fal": FalImageToVideoGenerator(),
 }
 
 
@@ -48,7 +56,11 @@ class JobStore:
         self._update(job_id, status=JobStatus.RUNNING, progress="starting")
         job = self.get(job_id)
         output_path = config.OUTPUTS_DIR / f"{job_id}.mp4"
-        generator = _GENERATORS[JobMode(job.mode)]
+        mode = JobMode(job.mode)
+        if mode == JobMode.AI_IMAGE_TO_VIDEO:
+            generator = _IMAGE_TO_VIDEO_GENERATORS[params["provider"]]
+        else:
+            generator = _GENERATORS[mode]
 
         def on_progress(message: str) -> None:
             self._update(job_id, progress=message)

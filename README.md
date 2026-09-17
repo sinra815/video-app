@@ -130,6 +130,46 @@ own developer APIs have no free tier at all; core.today advertises daily
 free credits but its cheapest image-to-video model costs more than the
 entire daily allowance, so it can't complete even one generation for free.)
 
+Magic Hour's credits ran out mid-use in practice (a 5s clip cost more
+credits than the trial balance had left) with no visibility until a job
+failed, so `GET /api/providers` now reports each configured provider's
+current credit balance, and the image-to-video form shows a "생성 API"
+selector with the balance next to each option instead of finding out from
+a failed job.
+
+## Image-to-video via fal.ai (second provider)
+
+Added as a second image-to-video provider alongside Magic Hour, both to
+have a fallback when one runs out of credits and because fal.ai has
+predictable per-generation USD pricing instead of Magic Hour's opaque
+credit system. Uses fal.ai's hosted **LTX-Video** model
+(`fal-ai/ltx-video/image-to-video`, ~$0.02/generation) via
+`app/generators/fal_image_to_video.py`:
+
+1. Upload the source image: `POST /storage/upload/initiate?storage_type=gcs`
+   on `https://rest.fal.ai` (get a presigned `upload_url` + `file_url`),
+   then `PUT` the bytes to `upload_url`.
+2. Submit the job: `POST https://queue.fal.run/fal-ai/ltx-video/image-to-video`
+   with `{"image_url", "prompt", "negative_prompt"?}` (no wrapper object) ->
+   `{"request_id", "status_url", "response_url", ...}`.
+3. Poll `status_url` until `status` is `COMPLETED`, then `GET response_url`
+   and download from `video.url`.
+
+This model produces a fixed ~5s clip - `duration_seconds` from the request
+is not configurable here and is silently ignored for this provider only.
+
+Set `FAL_API_KEY` as a backend env var — get a free key (no card required,
+trial credits) at <https://fal.ai/dashboard/keys>. Auth header is
+`Authorization: Key <FAL_API_KEY>` (not `Bearer`).
+
+**Verification status**: built from fal's official Python client source
+(`fal-ai/fal` on GitHub) and cross-checked docs, since fal.ai's docs
+domains aren't reachable from this dev sandbox to test live end-to-end the
+way Magic Hour was (see the `type`/`type_` bug that only showed up against
+a real call). If image-to-video via the "fal.ai (LTX-Video)" option fails,
+check the job's error message first — it's the raw API response, which
+should point at the exact mismatch.
+
 ## Running locally
 
 ### Backend
