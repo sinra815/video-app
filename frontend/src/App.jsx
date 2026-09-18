@@ -7,9 +7,10 @@ import ImageToVideoForm from "./ImageToVideoForm.jsx";
 import JobHistory from "./JobHistory.jsx";
 import JobStatus from "./JobStatus.jsx";
 import PinLock from "./PinLock.jsx";
+import { isSessionUnlocked, markSessionUnlocked } from "./pin";
 
 export default function App() {
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(isSessionUnlocked);
   const [showChangePin, setShowChangePin] = useState(false);
   const [mode, setMode] = useState("edit");
   const [job, setJob] = useState(null);
@@ -22,7 +23,14 @@ export default function App() {
   }, []);
 
   if (!unlocked) {
-    return <PinLock onUnlock={() => setUnlocked(true)} />;
+    return (
+      <PinLock
+        onUnlock={() => {
+          markSessionUnlocked();
+          setUnlocked(true);
+        }}
+      />
+    );
   }
 
   return (

@@ -2,6 +2,16 @@ import { useEffect, useState } from "react";
 import { createImageToVideoJob, getProviders, uploadFile } from "./api";
 import MagicHourClaimButton from "./MagicHourClaimButton.jsx";
 
+const MIN_DURATION_SECONDS = 1;
+const MAX_DURATION_SECONDS = 10;
+// Magic Hour image-to-video charges per rendered second, priced per model;
+// a free-tier account defaults to their cheapest model (ltx-2.5), which
+// falls in the ~24 credits/sec tier per Magic Hour's own published rates.
+// Not billed by us - only used to suggest a duration the current balance
+// can actually afford, so a low-credit account doesn't default to 5s and
+// fail partway through rendering.
+const MAGIC_HOUR_CREDITS_PER_SECOND = 24;
+
 export default function ImageToVideoForm({ onJobCreated }) {
   const [image, setImage] = useState(null);
   const [prompt, setPrompt] = useState("");
@@ -19,6 +29,12 @@ export default function ImageToVideoForm({ onJobCreated }) {
         setProvider((current) =>
           list.some((p) => p.id === current && p.usable) ? current : list.find((p) => p.usable)?.id ?? current
         );
+
+        const magicHour = list.find((p) => p.id === "magic_hour");
+        if (magicHour?.usable && typeof magicHour.credits === "number") {
+          const affordableSeconds = Math.floor(magicHour.credits / MAGIC_HOUR_CREDITS_PER_SECOND);
+          setDuration(Math.max(MIN_DURATION_SECONDS, Math.min(MAX_DURATION_SECONDS, affordableSeconds)));
+        }
       })
       .catch(() => setProviders([]));
   }, []);
@@ -106,8 +122,8 @@ export default function ImageToVideoForm({ onJobCreated }) {
         <input
           type="number"
           inputMode="numeric"
-          min="1"
-          max="10"
+          min={MIN_DURATION_SECONDS}
+          max={MAX_DURATION_SECONDS}
           step="1"
           value={duration}
           onChange={(e) => setDuration(e.target.value)}
