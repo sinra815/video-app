@@ -65,9 +65,15 @@ _IMAGE_EDIT_PROVIDERS = {
 }
 
 
-def _provider_entry(provider_id: str, label: str) -> dict:
+def _provider_entry(provider_id: str, label: str, mode: str) -> dict:
     entry = {"id": provider_id, "label": label, "configured": False, "credits": None, "error": None}
-    if provider_id == "magic_hour":
+    if provider_id == "magic_hour" and mode == "edit":
+        # Confirmed against a real job: Magic Hour's /ai-image-editor 402s
+        # with plan_upgrade_required regardless of credit balance - a
+        # trial/free-tier account can never use this endpoint, so there's
+        # no balance worth checking here.
+        entry["error"] = "이 계정 플랜에서는 이미지 편집이 지원되지 않습니다 (유료 플랜 필요)"
+    elif provider_id == "magic_hour":
         entry["configured"] = bool(config.MAGIC_HOUR_API_KEY)
         if entry["configured"]:
             try:
@@ -85,13 +91,20 @@ def _provider_entry(provider_id: str, label: str) -> dict:
         # Workers AI uses a daily neuron quota rather than a queryable
         # credit balance, so there's nothing to fetch here.
         entry["configured"] = bool(config.CLOUDFLARE_ACCOUNT_ID and config.CLOUDFLARE_API_TOKEN)
+
+    entry["usable"] = bool(
+        entry["configured"] and not entry["error"] and (entry["credits"] is None or entry["credits"] > 0)
+    )
     return entry
+
+
+def _provider_catalog(mode: str) -> dict:
+    return _IMAGE_EDIT_PROVIDERS if mode == "edit" else _IMAGE_TO_VIDEO_PROVIDERS
 
 
 @app.get("/api/providers")
 def list_providers(mode: str = "video") -> list[dict]:
-    catalog = _IMAGE_EDIT_PROVIDERS if mode == "edit" else _IMAGE_TO_VIDEO_PROVIDERS
-    return [_provider_entry(provider_id, label) for provider_id, label in catalog.items()]
+    return [_provider_entry(provider_id, label, mode) for provider_id, label in _provider_catalog(mode).items()]
 
 
 @app.post("/api/uploads")
@@ -226,10 +239,18 @@ def create_ai_job(req: AiJobRequest) -> Job:
     return job_store.create(JobMode.AI_TEXT_TO_VIDEO, params.model_dump())
 
 
+def _require_usable_provider(provider_id: str, mode: str) -> None:
+    catalog = _provider_catalog(mode)
+    if provider_id not in catalog:
+        raise HTTPException(400, f"Unknown provider: {provider_id}")
+    entry = _provider_entry(provider_id, catalog[provider_id], mode)
+    if not entry["usable"]:
+        raise HTTPException(400, entry["error"] or f"{catalog[provider_id]} is not currently usable")
+
+
 @app.post("/api/jobs/ai-image-to-video", response_model=Job)
 def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
-    if req.provider not in _IMAGE_TO_VIDEO_PROVIDERS:
-        raise HTTPException(400, f"Unknown provider: {req.provider}")
+    _require_usable_provider(req.provider, "video")
 
     if req.image_file_id:
         image_path = _resolve_upload(req.image_file_id)
@@ -250,8 +271,7 @@ def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
 
 @app.post("/api/jobs/ai-image-edit", response_model=Job)
 def create_ai_image_edit_job(req: AiImageEditJobRequest) -> Job:
-    if req.provider not in _IMAGE_EDIT_PROVIDERS:
-        raise HTTPException(400, f"Unknown provider: {req.provider}")
+    _require_usable_provider(req.provider, "edit")
 
     if req.image_file_id:
         image_path = _resolve_upload(req.image_file_id)

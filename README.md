@@ -53,6 +53,13 @@ on `PATH`) so the frontend can show a warning banner when it isn't configured.
 Submitting an AI job without a working CLI/auth still creates a job — it just
 ends up `failed` with a descriptive error, same as any other runtime failure.
 
+The text-to-video form no longer offers a GPU choice - `colab new --gpu L4`
+and `--gpu A100` both failed on a real job (`Backend rejected accelerator
+'L4'. You may not have quota or entitlement for this accelerator on your
+account`) since this Colab account's free tier only has T4 entitlement.
+`AiForm.jsx` hardcodes `gpu: "T4"` instead of offering options that would
+just fail.
+
 ### How auth is wired up
 
 `google-colab-cli`'s OAuth2 flow is a copy-paste flow (visit a URL, paste back
@@ -138,10 +145,15 @@ entire daily allowance, so it can't complete even one generation for free.)
 
 Magic Hour's credits ran out mid-use in practice (a 5s clip cost more
 credits than the trial balance had left) with no visibility until a job
-failed, so `GET /api/providers` now reports each configured provider's
-current credit balance, and the image-to-video form shows a "생성 API"
-selector with the balance next to each option instead of finding out from
-a failed job.
+failed, so `GET /api/providers?mode=video|edit` now reports each
+provider's `configured`/`credits`/`error` state plus a computed `usable`
+flag (`configured && !error && (credits is None or credits > 0)`), and the
+"생성 API" selector disables any `<option>` where `usable` is false (shown
+as "사용 불가" instead of a credit count) so a provider that's out of
+credits, locked, or plan-gated can't be selected in the first place. The
+backend re-checks `usable` on job submission too (`_require_usable_provider`
+in `main.py`) so a stale/cached page can't slip a disabled provider through
+- it gets a clean 400 instead of a raw provider error mid-job.
 
 **AI Image Editor caveat**: unlike `/image-to-video`, Magic Hour's
 `/ai-image-editor` endpoint is gated behind a paid plan even with trial

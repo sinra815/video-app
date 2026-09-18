@@ -13,7 +13,12 @@ export default function ImageToVideoForm({ onJobCreated }) {
 
   useEffect(() => {
     getProviders("video")
-      .then(setProviders)
+      .then((list) => {
+        setProviders(list);
+        setProvider((current) =>
+          list.some((p) => p.id === current && p.usable) ? current : list.find((p) => p.usable)?.id ?? current
+        );
+      })
       .catch(() => setProviders([]));
   }, []);
 
@@ -54,14 +59,14 @@ export default function ImageToVideoForm({ onJobCreated }) {
         생성 API
         <select value={provider} onChange={(e) => setProvider(e.target.value)}>
           {providers.map((p) => (
-            <option key={p.id} value={p.id}>
+            <option key={p.id} value={p.id} disabled={!p.usable}>
               {p.label}
-              {p.configured ? ` (크레딧 ${p.credits ?? "확인 실패"})` : " (설정 안 됨)"}
+              {p.usable ? ` (크레딧 ${p.credits ?? "무제한"})` : " (사용 불가)"}
             </option>
           ))}
         </select>
       </label>
-      {selected?.error && <p className="error-text">크레딧 조회 실패: {selected.error}</p>}
+      {selected?.error && <p className="error-text">{selected.error}</p>}
 
       <p className="notice">
         이 기능은 <a href="https://magichour.ai" target="_blank" rel="noreferrer">Magic Hour</a>{" "}

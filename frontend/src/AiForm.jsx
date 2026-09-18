@@ -5,7 +5,11 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [duration, setDuration] = useState(4);
-  const [gpu, setGpu] = useState("T4");
+  // L4/A100 fail every time with "Backend rejected accelerator ... no quota
+  // or entitlement" on this free Colab account (confirmed against real
+  // failed jobs) - T4 is the only tier this account can actually use, so
+  // it's not offered as a choice.
+  const gpu = "T4";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -75,11 +79,7 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
         </label>
         <label>
           GPU
-          <select value={gpu} onChange={(e) => setGpu(e.target.value)}>
-            <option value="T4">T4</option>
-            <option value="L4">L4</option>
-            <option value="A100">A100</option>
-          </select>
+          <input type="text" value="T4 (무료 Colab 계정에서 사용 가능한 유일한 옵션)" disabled />
         </label>
       </div>
 
