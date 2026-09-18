@@ -17,6 +17,13 @@ export default function JobStatus({ job, onReset }) {
         }
       } catch (err) {
         console.error(err);
+        clearInterval(interval);
+        setCurrent((prev) => ({
+          ...prev,
+          status: "failed",
+          progress: "failed",
+          error: "작업 상태를 확인할 수 없습니다 (서버가 재시작되었을 수 있습니다). 다시 시도해주세요.",
+        }));
       }
     }, 1500);
 
