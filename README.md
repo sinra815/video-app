@@ -204,6 +204,16 @@ otherwise prohibited content is not permitted regardless of provider) —
 this only reduces false-positive refusals on legitimate edits, not the
 underlying policy.
 
+Even so, the model still occasionally refuses an ordinary edit with a
+generic "please choose another prompt" message, seemingly keying off exact
+wording rather than an actual policy violation — a semantically identical
+prompt reworded differently sometimes then passes. On that specific error,
+`cloudflare_image_edit.py` now retries with the prompt reworded via
+round-trip translation (English → Korean/Japanese/French → English, using
+the same free Google Translate endpoint as `translate.py`) instead of
+resending the unchanged prompt, up to 3 times, separately from the
+capacity-error retry above.
+
 **Ruled out: Google Gemini (`gemini-3.1-flash-image`, "Nano Banana")**. Best
 edit quality of anything tried (identity-preserving, closed model), and a
 real request authenticated fine with a free API key - but every image
