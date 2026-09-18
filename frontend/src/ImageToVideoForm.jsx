@@ -4,13 +4,15 @@ import MagicHourClaimButton from "./MagicHourClaimButton.jsx";
 
 const MIN_DURATION_SECONDS = 1;
 const MAX_DURATION_SECONDS = 10;
-// Magic Hour image-to-video charges per rendered second, priced per model;
-// a free-tier account defaults to their cheapest model (ltx-2.5), which
-// falls in the ~24 credits/sec tier per Magic Hour's own published rates.
-// Not billed by us - only used to suggest a duration the current balance
-// can actually afford, so a low-credit account doesn't default to 5s and
-// fail partway through rendering.
-const MAGIC_HOUR_CREDITS_PER_SECOND = 24;
+// Magic Hour image-to-video charges per rendered second, priced per model.
+// 24 credits/sec (a guess from Magic Hour's published rate card) was off -
+// confirmed against a real account with a 120-credit balance that this
+// free-tier default model (ltx-2.5) actually costs 30 credits/sec (120/30
+// = 4s exactly, matching what the account could really afford). Not
+// billed by us - only used to suggest a duration the current balance can
+// actually afford, so a low-credit account doesn't default to 5s and fail
+// partway through rendering.
+const MAGIC_HOUR_CREDITS_PER_SECOND = 30;
 
 export default function ImageToVideoForm({ onJobCreated }) {
   const [image, setImage] = useState(null);
