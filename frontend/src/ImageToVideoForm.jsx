@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createImageToVideoJob, getProviders, uploadFile } from "./api";
+import MagicHourClaimButton from "./MagicHourClaimButton.jsx";
 
 export default function ImageToVideoForm({ onJobCreated }) {
   const [image, setImage] = useState(null);
@@ -70,9 +71,10 @@ export default function ImageToVideoForm({ onJobCreated }) {
 
       <p className="notice">
         이 기능은 <a href="https://magichour.ai" target="_blank" rel="noreferrer">Magic Hour</a>{" "}
-        무료 크레딧으로 동작합니다. 크레딧이 부족해지면 매일 한 번 magichour.ai에 접속해서 출석
-        포인트를 받아두세요.
+        무료 크레딧으로 동작합니다. 크레딧이 부족해지면 아래 버튼으로 매일 한 번 magichour.ai에
+        접속해서 출석 포인트를 받아두세요.
       </p>
+      <MagicHourClaimButton />
 
       <label>
         사진
