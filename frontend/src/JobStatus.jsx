@@ -11,6 +11,20 @@ import { downloadUrl, getJob } from "./api";
 const MAX_AUTO_RETRIES = 12;
 const AUTO_RETRY_DELAY_MS = 5000;
 
+// Magic Hour's image-to-video content filter rejects a job outright with
+// this error code when it flags the source photo and/or prompt as NSFW -
+// confirmed against real failed jobs where even innocuous prompts ("bounce",
+// "자리에서 일어나") failed this way, meaning the photo itself is usually what
+// tripped it. Unlike a transient error, resubmitting the same photo/prompt
+// can never succeed, so once auto-retry has exhausted its attempts (or
+// isn't running at all, e.g. viewing a past job from history) this specific
+// failure gets a clear explanation instead of the raw provider error text.
+const CONTENT_POLICY_ERROR_MARKER = "'code': 'nsfw'";
+
+function isContentPolicyError(error) {
+  return typeof error === "string" && error.includes(CONTENT_POLICY_ERROR_MARKER);
+}
+
 export default function JobStatus({ job, onReset, onRetry }) {
   const [current, setCurrent] = useState(job);
   const [autoRetryCount, setAutoRetryCount] = useState(0);
@@ -67,6 +81,10 @@ export default function JobStatus({ job, onReset, onRetry }) {
     await onRetry();
   }
 
+  const autoRetryExhausted = !onRetry || autoRetryCount >= MAX_AUTO_RETRIES;
+  const contentPolicyBlocked =
+    current.status === "failed" && autoRetryExhausted && isContentPolicyError(current.error);
+
   return (
     <div className="job-status">
       <div className="job-status-header">
@@ -75,7 +93,11 @@ export default function JobStatus({ job, onReset, onRetry }) {
       </div>
 
       {current.status === "failed" && (
-        <p className="error-text">{current.error}</p>
+        <p className="error-text">
+          {contentPolicyBlocked
+            ? "이 사진/문구 조합은 콘텐츠 정책에 걸려 재시도해도 성공하지 않습니다."
+            : current.error}
+        </p>
       )}
 
       {autoRetrying && (
