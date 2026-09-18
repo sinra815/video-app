@@ -10,7 +10,7 @@ import { downloadUrl, getJob } from "./api";
 // backend was confirmed to crash the server once - see cloudflare_image_edit.py).
 const AUTO_RETRY_ERROR_MARKER = '"code":3040';
 const MAX_AUTO_RETRIES = 5;
-const AUTO_RETRY_DELAY_MS = 30000;
+const AUTO_RETRY_DELAY_MS = 10000;
 
 export default function JobStatus({ job, onReset, onRetry }) {
   const [current, setCurrent] = useState(job);
