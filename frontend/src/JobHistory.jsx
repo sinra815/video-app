@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { listJobs } from "./api";
 
 const MODE_LABELS = {
-  slideshow: "이미지 슬라이드쇼",
   ai_text_to_video: "AI 텍스트-투-비디오",
   ai_image_to_video: "AI 이미지-투-비디오",
+  ai_image_edit: "AI 사진 편집",
 };
 
 function formatTime(unixSeconds) {

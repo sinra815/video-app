@@ -55,14 +55,16 @@ export default function ImageToVideoForm({ onJobCreated }) {
     setError(null);
     try {
       const upload = await uploadFile(image);
-      const job = await createImageToVideoJob({
-        image_file_id: upload.file_id,
-        prompt,
-        negative_prompt: negativePrompt || null,
-        duration_seconds: Number(duration),
-        provider,
-      });
-      onJobCreated(job);
+      const submit = () =>
+        createImageToVideoJob({
+          image_file_id: upload.file_id,
+          prompt,
+          negative_prompt: negativePrompt || null,
+          duration_seconds: Number(duration),
+          provider,
+        });
+      const job = await submit();
+      onJobCreated(job, submit);
     } catch (err) {
       setError(err.message);
     } finally {

@@ -14,7 +14,23 @@ export default function App() {
   const [showChangePin, setShowChangePin] = useState(false);
   const [mode, setMode] = useState("edit");
   const [job, setJob] = useState(null);
+  const [retrySubmit, setRetrySubmit] = useState(null);
   const [colabAvailable, setColabAvailable] = useState(false);
+
+  function handleJobCreated(newJob, retryFn) {
+    setJob(newJob);
+    setRetrySubmit(() => retryFn ?? null);
+  }
+
+  function handleReset() {
+    setJob(null);
+    setRetrySubmit(null);
+  }
+
+  async function handleRetry() {
+    const newJob = await retrySubmit();
+    setJob(newJob);
+  }
 
   useEffect(() => {
     getHealth()
@@ -74,14 +90,23 @@ export default function App() {
             </button>
           </nav>
 
-          {mode === "edit" && <ImageEditForm onJobCreated={setJob} />}
-          {mode === "ai" && <AiForm onJobCreated={setJob} colabAvailable={colabAvailable} />}
-          {mode === "image" && <ImageToVideoForm onJobCreated={setJob} />}
-          {mode === "history" && <JobHistory onSelectJob={setJob} />}
+          {mode === "edit" && <ImageEditForm onJobCreated={handleJobCreated} />}
+          {mode === "ai" && <AiForm onJobCreated={handleJobCreated} colabAvailable={colabAvailable} />}
+          {mode === "image" && <ImageToVideoForm onJobCreated={handleJobCreated} />}
+          {mode === "history" && (
+            <JobHistory
+              onSelectJob={(j) => {
+                setJob(j);
+                setRetrySubmit(null);
+              }}
+            />
+          )}
         </>
       )}
 
-      {!showChangePin && job && <JobStatus job={job} onReset={() => setJob(null)} />}
+      {!showChangePin && job && (
+        <JobStatus job={job} onReset={handleReset} onRetry={retrySubmit ? handleRetry : undefined} />
+      )}
     </div>
   );
 }

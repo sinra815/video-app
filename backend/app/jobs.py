@@ -9,11 +9,9 @@ from .generators.cloudflare_image_edit import CloudflareImageEditGenerator
 from .generators.colab_ai import ColabAiGenerator
 from .generators.magic_hour_image_edit import MagicHourImageEditGenerator
 from .generators.magic_hour_image_to_video import MagicHourImageToVideoGenerator
-from .generators.slideshow import SlideshowGenerator
 from .models import Job, JobMode, JobStatus
 
 _GENERATORS = {
-    JobMode.SLIDESHOW: SlideshowGenerator(),
     JobMode.AI_TEXT_TO_VIDEO: ColabAiGenerator(),
 }
 

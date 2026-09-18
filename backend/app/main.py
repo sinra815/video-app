@@ -23,7 +23,6 @@ from .models import (
     AiTextToVideoParams,
     Job,
     JobMode,
-    SlideshowParams,
 )
 
 app = FastAPI(title="컨텐츠 생성기")
@@ -106,15 +105,6 @@ async def upload_file(file: UploadFile = File(...)) -> dict:
     with dest.open("wb") as f:
         f.write(await file.read())
     return {"file_id": stored_name, "path": str(dest)}
-
-
-class SlideshowJobRequest(BaseModel):
-    image_file_ids: list[str]
-    audio_file_id: Optional[str] = None
-    seconds_per_image: float = 3.0
-    transition_seconds: float = 0.8
-    resolution: str = "1280x720"
-    fps: int = 30
 
 
 class AiJobRequest(BaseModel):
@@ -203,21 +193,6 @@ def _download_image_url(url: str) -> Path:
     dest = config.UPLOADS_DIR / f"{uuid.uuid4().hex}{suffix}"
     dest.write_bytes(data)
     return dest
-
-
-@app.post("/api/jobs/slideshow", response_model=Job)
-def create_slideshow_job(req: SlideshowJobRequest) -> Job:
-    image_paths = [str(_resolve_upload(fid)) for fid in req.image_file_ids]
-    audio_path = str(_resolve_upload(req.audio_file_id)) if req.audio_file_id else None
-    params = SlideshowParams(
-        image_paths=image_paths,
-        audio_path=audio_path,
-        seconds_per_image=req.seconds_per_image,
-        transition_seconds=req.transition_seconds,
-        resolution=req.resolution,
-        fps=req.fps,
-    )
-    return job_store.create(JobMode.SLIDESHOW, params.model_dump())
 
 
 @app.post("/api/jobs/ai", response_model=Job)

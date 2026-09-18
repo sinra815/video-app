@@ -1,22 +1,19 @@
 # 컨텐츠 생성기 (Content Generator)
 
-A web app for generating videos two ways:
+A web app for AI-generating photos and videos three ways:
 
-1. **Image slideshow** — upload images (+ optional background audio), get an mp4
-   with crossfade transitions. Runs locally via `ffmpeg` (bundled through
-   `imageio-ffmpeg`), no GPU or external service required.
-2. **AI text-to-video** — a text prompt is turned into a short video by
+1. **AI text-to-video** — a text prompt is turned into a short video by
    provisioning a GPU runtime on Google Colab via
    [`google-colab-cli`](https://github.com/googlecolab/google-colab-cli),
    running a diffusers text-to-video pipeline there, and pulling the result
    back.
-3. **AI image-to-video** — a photo + a text prompt (what motion/change to
+2. **AI image-to-video** — a photo + a text prompt (what motion/change to
    apply) generates a short video via the hosted [Magic
    Hour](https://magichour.ai) API (see [Image-to-video via Magic
    Hour](#image-to-video-via-magic-hour) below), not Colab. Also supports
    giving the image as a URL instead of uploading a file, since the server
    fetches it itself.
-4. **AI image edit** — a photo + a text prompt (what to change) returns an
+3. **AI image edit** — a photo + a text prompt (what to change) returns an
    edited still image instead of a video, via one of two providers picked
    in the "생성 API" selector: Magic Hour's `/ai-image-editor` (needs a paid
    plan - see caveat below), or [Cloudflare Workers AI](#image-edit-via-cloudflare-workers-ai-second-provider)
@@ -280,6 +277,13 @@ service for the backend, and a static site for the frontend.
   mid-job twice in a row when the retry budget was widened to ~4.6 minutes;
   narrowing it back to ~50s (3 retries) stopped it. If job history keeps
   disappearing, suspect whatever generator is holding a thread longest.
+  Since the backend retry budget alone still leaves real capacity dips
+  unhandled, `JobStatus.jsx` now also retries client-side, but as separate
+  short-lived job submissions spread ~30s apart (up to 5 extra attempts)
+  instead of one long-held backend request - only for this specific
+  `"code":3040` error, plus a manual "다시 시도" button on any failure that
+  resubmits without re-uploading the photo (the server keeps the uploaded
+  file, so a retry only needs the same `image_file_id`/prompt/provider).
 - The free web service spins down after 15 minutes of inactivity — the first
   request after that takes 30-60s to wake it back up.
 - The Colab OAuth token is stored as a Render Secret File, which — unlike

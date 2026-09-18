@@ -22,13 +22,15 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
     setBusy(true);
     setError(null);
     try {
-      const job = await createAiJob({
-        prompt,
-        negative_prompt: negativePrompt || null,
-        duration_seconds: Number(duration),
-        gpu,
-      });
-      onJobCreated(job);
+      const submit = () =>
+        createAiJob({
+          prompt,
+          negative_prompt: negativePrompt || null,
+          duration_seconds: Number(duration),
+          gpu,
+        });
+      const job = await submit();
+      onJobCreated(job, submit);
     } catch (err) {
       setError(err.message);
     } finally {

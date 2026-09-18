@@ -35,12 +35,17 @@ export default function ImageEditForm({ onJobCreated }) {
     setError(null);
     try {
       const upload = await uploadFile(image);
-      const job = await createImageEditJob({
-        image_file_id: upload.file_id,
-        prompt,
-        provider,
-      });
-      onJobCreated(job);
+      // Re-postable without re-uploading: the file stays on the server
+      // under this id, so a retry (manual or automatic) just resubmits
+      // the same job params as a fresh, short-lived job.
+      const submit = () =>
+        createImageEditJob({
+          image_file_id: upload.file_id,
+          prompt,
+          provider,
+        });
+      const job = await submit();
+      onJobCreated(job, submit);
     } catch (err) {
       setError(err.message);
     } finally {
