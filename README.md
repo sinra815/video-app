@@ -279,7 +279,7 @@ service for the backend, and a static site for the frontend.
   disappearing, suspect whatever generator is holding a thread longest.
   Since the backend retry budget alone still leaves real capacity dips
   unhandled, `JobStatus.jsx` now also retries client-side, but as separate
-  short-lived job submissions spread ~10s apart (up to 5 extra attempts)
+  short-lived job submissions spread ~5s apart (up to 12 extra attempts)
   instead of one long-held backend request - only for this specific
   `"code":3040` error, plus a manual "다시 시도" button on any failure that
   resubmits without re-uploading the photo (the server keeps the uploaded
