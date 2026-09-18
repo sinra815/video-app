@@ -246,6 +246,15 @@ otherwise prohibited content is not permitted regardless of provider) —
 this only reduces false-positive refusals on legitimate edits, not the
 underlying policy.
 
+**Ruled out: Google Gemini (`gemini-3.1-flash-image`, "Nano Banana")**. Best
+edit quality of anything tried (identity-preserving, closed model), and a
+real request authenticated fine with a free API key - but every image
+model returns `429 {"code": "too_many_requests", ...limit: 0...}` until the
+Google Cloud project has a **billing account linked**, even to use the free
+daily quota at all (a widely-reported Gemini API behavior, not a bug in
+this app). Ruled out here specifically because it requires registering a
+card - do not re-add this provider unless that changes.
+
 ## Running locally
 
 ### Backend
