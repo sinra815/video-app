@@ -36,7 +36,7 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>AI 사진/동영상 생성기</h1>
+        <h1>컨텐츠 생성기</h1>
         <p className="subtitle">사진을 올리고 프롬프트로 원하는 모습으로 바꾸거나, 동영상으로 만드세요.</p>
         <button type="button" className="link-button" onClick={() => setShowChangePin(true)}>
           비밀번호 변경
