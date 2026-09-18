@@ -42,11 +42,17 @@ _OUTPUT_EXTENSIONS = {
 
 # Job records used to live only in this process's memory - a free-tier
 # container restart (e.g. an OOM kill during a long Cloudflare FLUX.2 retry
-# loop, confirmed against a real job that vanished with 404 mid-retry)
-# wiped every job silently, with the frontend left polling a 404 forever
-# (see JobStatus.jsx). Persisting to a file survives a same-container
-# restart (though not a fresh deploy - Render's free-tier disk isn't
-# preserved across those either, per the README's storage caveat).
+# loop) wiped every job silently, with the frontend left polling a 404
+# forever (see JobStatus.jsx). This was expected to at least survive a
+# same-container restart, but confirmed against two real crashes that
+# Render's free-tier disk does *not* survive a restart either (matches the
+# README's existing "lost on every redeploy or restart" storage caveat,
+# which turned out to be literal) - GET /api/jobs came back empty right
+# after. Kept anyway since it's harmless and helps in any environment
+# where the disk *does* survive (local dev, a paid Render disk), but don't
+# rely on it surviving a crash on this deployment - see
+# cloudflare_image_edit.py's retry budget for the actual mitigation
+# (shorter retries so the crash is less likely to happen at all).
 _JOBS_FILE = config.STORAGE_DIR / "jobs.json"
 
 

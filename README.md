@@ -298,7 +298,18 @@ service for the backend, and a static site for the frontend.
   container's local disk, so they're **lost on every redeploy or restart**.
   Fine for trying it out; for real use, add a paid persistent disk mounted at
   `backend/storage`, or swap local storage for S3-compatible object storage
-  (not implemented here).
+  (not implemented here). This also means job history (`JobStore`, backed by
+  `storage/jobs.json`) doesn't survive a crash-triggered restart either -
+  confirmed against two real jobs that vanished (`GET /api/jobs` came back
+  `[]` right after) when the backend process restarted mid-job. The write
+  is still there since it's harmless and helps in any environment where the
+  disk *does* survive, but don't rely on it here.
+- **512MB RAM is tight** — a Cloudflare FLUX.2 image-edit job holding a
+  background thread in a multi-minute retry-with-backoff loop (see
+  `cloudflare_image_edit.py`) correlated with the whole process restarting
+  mid-job twice in a row when the retry budget was widened to ~4.6 minutes;
+  narrowing it back to ~50s (3 retries) stopped it. If job history keeps
+  disappearing, suspect whatever generator is holding a thread longest.
 - The free web service spins down after 15 minutes of inactivity — the first
   request after that takes 30-60s to wake it back up.
 - The Colab OAuth token is stored as a Render Secret File, which — unlike
