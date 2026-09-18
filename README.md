@@ -278,12 +278,16 @@ service for the backend, and a static site for the frontend.
   narrowing it back to ~50s (3 retries) stopped it. If job history keeps
   disappearing, suspect whatever generator is holding a thread longest.
   Since the backend retry budget alone still leaves real capacity dips
-  unhandled, `JobStatus.jsx` now also retries client-side, but as separate
-  short-lived job submissions spread ~5s apart (up to 12 extra attempts)
-  instead of one long-held backend request - only for this specific
-  `"code":3040` error, plus a manual "다시 시도" button on any failure that
-  resubmits without re-uploading the photo (the server keeps the uploaded
-  file, so a retry only needs the same `image_file_id`/prompt/provider).
+  unhandled, `JobStatus.jsx` now also retries client-side on **any** job
+  failure, but as separate short-lived job submissions spread ~5s apart (up
+  to 12 extra attempts) instead of one long-held backend request. A
+  permanently-broken request (bad config, plan-gated provider, etc.) just
+  fails the same way each of the 12 times and then stops - this trades a
+  few wasted retries on non-transient errors for not needing to keep a
+  by-error allowlist in sync. Also a manual "다시 시도" button on any failure
+  that resubmits without re-uploading the photo (the server keeps the
+  uploaded file, so a retry only needs the same
+  `image_file_id`/prompt/provider).
 - The free web service spins down after 15 minutes of inactivity — the first
   request after that takes 30-60s to wake it back up.
 - The Colab OAuth token is stored as a Render Secret File, which — unlike

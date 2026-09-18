@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { downloadUrl, getJob } from "./api";
 
-// Cloudflare's "Capacity temporarily exceeded" (code 3040) on the image-edit
-// provider is the one failure mode confirmed transient in practice (a
-// shared free-tier GPU pool being momentarily full, not a real error in the
-// request) - auto-retry only for this specific signature, spread out with
-// a real delay between attempts so each retry is a short-lived fresh job
-// instead of one long-held thread (a longer single retry loop on the
-// backend was confirmed to crash the server once - see cloudflare_image_edit.py).
-const AUTO_RETRY_ERROR_MARKER = '"code":3040';
+// Auto-retry on any job failure, not just Cloudflare's "Capacity
+// temporarily exceeded" - spread out with a real delay between attempts so
+// each retry is a short-lived fresh job instead of one long-held thread (a
+// longer single retry loop on the backend was confirmed to crash the
+// server once - see cloudflare_image_edit.py). A permanently-broken
+// request (bad config, unusable provider, etc.) will just fail the same
+// way each time and stop after MAX_AUTO_RETRIES like any other case.
 const MAX_AUTO_RETRIES = 12;
 const AUTO_RETRY_DELAY_MS = 5000;
 
@@ -44,8 +43,7 @@ export default function JobStatus({ job, onReset, onRetry }) {
   }, [job]);
 
   useEffect(() => {
-    const isCapacityError = current.status === "failed" && current.error?.includes(AUTO_RETRY_ERROR_MARKER);
-    if (!isCapacityError || !onRetry || autoRetryCount >= MAX_AUTO_RETRIES) return;
+    if (current.status !== "failed" || !onRetry || autoRetryCount >= MAX_AUTO_RETRIES) return;
 
     setAutoRetrying(true);
     const timer = setTimeout(async () => {
@@ -82,7 +80,7 @@ export default function JobStatus({ job, onReset, onRetry }) {
 
       {autoRetrying && (
         <p className="hint">
-          일시적인 용량 문제로 보여 {AUTO_RETRY_DELAY_MS / 1000}초 후 자동으로 다시 시도합니다 (
+          {AUTO_RETRY_DELAY_MS / 1000}초 후 자동으로 다시 시도합니다 (
           {autoRetryCount + 1}/{MAX_AUTO_RETRIES})...
         </p>
       )}
