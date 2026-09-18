@@ -7,8 +7,6 @@ from threading import Lock
 from . import config
 from .generators.cloudflare_image_edit import CloudflareImageEditGenerator
 from .generators.colab_ai import ColabAiGenerator
-from .generators.fal_image_edit import FalImageEditGenerator
-from .generators.fal_image_to_video import FalImageToVideoGenerator
 from .generators.magic_hour_image_edit import MagicHourImageEditGenerator
 from .generators.magic_hour_image_to_video import MagicHourImageToVideoGenerator
 from .generators.slideshow import SlideshowGenerator
@@ -25,12 +23,10 @@ _GENERATORS = {
 # than a single fixed generator like the other modes above.
 _IMAGE_TO_VIDEO_GENERATORS = {
     "magic_hour": MagicHourImageToVideoGenerator(),
-    "fal": FalImageToVideoGenerator(),
 }
 
 _IMAGE_EDIT_GENERATORS = {
     "magic_hour": MagicHourImageEditGenerator(),
-    "fal": FalImageEditGenerator(),
     "cloudflare": CloudflareImageEditGenerator(),
 }
 

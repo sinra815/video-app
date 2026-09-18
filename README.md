@@ -1,4 +1,4 @@
-# Video Generator
+# 컨텐츠 생성기 (Content Generator)
 
 A web app for generating videos two ways:
 
@@ -17,10 +17,9 @@ A web app for generating videos two ways:
    giving the image as a URL instead of uploading a file, since the server
    fetches it itself.
 4. **AI image edit** — a photo + a text prompt (what to change) returns an
-   edited still image instead of a video, via one of three providers picked
+   edited still image instead of a video, via one of two providers picked
    in the "생성 API" selector: Magic Hour's `/ai-image-editor` (needs a paid
-   plan - see caveat below), fal.ai's FLUX Kontext [dev] (needs USD credit
-   balance), or [Cloudflare Workers AI](#image-edit-via-cloudflare-workers-ai-third-provider)
+   plan - see caveat below), or [Cloudflare Workers AI](#image-edit-via-cloudflare-workers-ai-second-provider)
    (free, no card required - the default).
 
 ## Stack
@@ -163,50 +162,12 @@ model"). Not a bug in this app; Magic Hour just doesn't offer that specific
 feature on the free/trial tier. Use the Cloudflare Workers AI provider for
 image edit instead (see below).
 
-## Image-to-video via fal.ai (second provider)
+## Image edit via Cloudflare Workers AI (second provider)
 
-Added as a second image-to-video provider alongside Magic Hour, both to
-have a fallback when one runs out of credits and because fal.ai has
-predictable per-generation USD pricing instead of Magic Hour's opaque
-credit system. Uses fal.ai's hosted **LTX-Video** model
-(`fal-ai/ltx-video/image-to-video`, ~$0.02/generation) via
-`app/generators/fal_image_to_video.py`:
-
-1. Upload the source image: `POST /storage/upload/initiate?storage_type=gcs`
-   on `https://rest.fal.ai` (get a presigned `upload_url` + `file_url`),
-   then `PUT` the bytes to `upload_url`.
-2. Submit the job: `POST https://queue.fal.run/fal-ai/ltx-video/image-to-video`
-   with `{"image_url", "prompt", "negative_prompt"?}` (no wrapper object) ->
-   `{"request_id", "status_url", "response_url", ...}`.
-3. Poll `status_url` until `status` is `COMPLETED`, then `GET response_url`
-   and download from `video.url`.
-
-This model produces a fixed ~5s clip - `duration_seconds` from the request
-is not configurable here and is silently ignored for this provider only.
-
-Set `FAL_API_KEY` as a backend env var — get a free key (no card required,
-trial credits) at <https://fal.ai/dashboard/keys>. Auth header is
-`Authorization: Key <FAL_API_KEY>` (not `Bearer`).
-
-**Verification status**: built from fal's official Python client source
-(`fal-ai/fal` on GitHub) and cross-checked docs, since fal.ai's docs
-domains aren't reachable from this dev sandbox to test live end-to-end the
-way Magic Hour was (see the `type`/`type_` bug that only showed up against
-a real call). If image-to-video via the "fal.ai (LTX-Video)" option fails,
-check the job's error message first — it's the raw API response, which
-should point at the exact mismatch.
-
-fal.ai's own account balance also ran out during testing (`403 Exhausted
-balance` on a real `/ai-image-editor`-equivalent call via FLUX Kontext), so
-image edit through this provider needs the account topped up with a small
-USD balance before it'll work — not a code bug.
-
-## Image edit via Cloudflare Workers AI (third provider)
-
-Added as a third image-edit provider (`app/generators/cloudflare_image_edit.py`)
-after both Magic Hour (needs a paid plan for `/ai-image-editor`, see above)
-and fal.ai (needs a topped-up balance) turned out not to be usable for free
-in practice. Cloudflare Workers AI's free plan gives **10,000 "neurons"/day
+Added as a second image-edit provider (`app/generators/cloudflare_image_edit.py`)
+after Magic Hour (needs a paid plan for `/ai-image-editor`, see above)
+turned out not to be usable for free in practice. Cloudflare Workers AI's
+free plan gives **10,000 "neurons"/day
 at no cost, no card required**, running the open-weight Stable Diffusion
 XL `img2img` model:
 
