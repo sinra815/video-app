@@ -54,10 +54,15 @@ _MAX_DIMENSION = 512
 # FLUX.2 [dev] is popular enough that Cloudflare's free-tier capacity for it
 # is often exhausted (429 {"code": 3040, "message": "Capacity temporarily
 # exceeded, please try again"}), confirmed intermittent (not permanent)
-# against a real account - retrying with backoff clears it within a couple
-# of attempts in practice.
+# against a real account - retrying with backoff usually clears it, but a
+# real job once exhausted the original 3-retry budget (4 attempts, ~50s)
+# outright during a sustained high-demand window. This runs in a background
+# thread with no HTTP request tied to it (the frontend polls job status
+# separately), so there's no external timeout forcing a short budget -
+# widened to 8 retries (9 attempts, ~4.6min of cumulative backoff) to ride
+# out longer capacity dips before giving up.
 _CAPACITY_ERROR_CODE = 3040
-_RETRY_DELAYS_SECONDS = (5, 15, 30)
+_RETRY_DELAYS_SECONDS = (5, 10, 15, 20, 30, 45, 60, 90)
 
 
 class CloudflareError(RuntimeError):
