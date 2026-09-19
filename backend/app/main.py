@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import colab_client, config, translate
+from . import colab_client, config, email_notify, translate
 from .generators import fal_image_to_video, magic_hour_image_to_video
 from .generators.fal_image_to_video import FalError
 from .generators.magic_hour_image_to_video import MagicHourError
@@ -46,6 +46,8 @@ def health() -> dict:
         "status": "ok",
         "colab_cli_available": colab_client.is_available(),
         "magic_hour_configured": bool(config.MAGIC_HOUR_API_KEY),
+        "email_notifications_configured": email_notify.is_configured(),
+        "default_notify_email": config.DEFAULT_NOTIFY_EMAIL,
     }
 
 
@@ -124,6 +126,7 @@ class SlideshowJobRequest(BaseModel):
     transition_seconds: float = 0.8
     resolution: str = "1280x720"
     fps: int = 30
+    notify_email: Optional[str] = None
 
 
 class AiJobRequest(BaseModel):
@@ -133,6 +136,7 @@ class AiJobRequest(BaseModel):
     fps: int = 8
     resolution: str = "512x512"
     gpu: str = "T4"
+    notify_email: Optional[str] = None
 
 
 class AiImageToVideoJobRequest(BaseModel):
@@ -145,6 +149,7 @@ class AiImageToVideoJobRequest(BaseModel):
     negative_prompt: Optional[str] = None
     duration_seconds: float = 5.0
     provider: str = "magic_hour"
+    notify_email: Optional[str] = None
 
 
 class AiImageEditJobRequest(BaseModel):
@@ -152,6 +157,7 @@ class AiImageEditJobRequest(BaseModel):
     image_url: Optional[str] = None
     prompt: str
     provider: str = "magic_hour"
+    notify_email: Optional[str] = None
 
 
 def _resolve_upload(file_id: str) -> Path:
@@ -226,17 +232,17 @@ def create_slideshow_job(req: SlideshowJobRequest) -> Job:
         resolution=req.resolution,
         fps=req.fps,
     )
-    return job_store.create(JobMode.SLIDESHOW, params.model_dump())
+    return job_store.create(JobMode.SLIDESHOW, params.model_dump(), notify_email=req.notify_email)
 
 
 @app.post("/api/jobs/ai", response_model=Job)
 def create_ai_job(req: AiJobRequest) -> Job:
-    data = req.model_dump()
+    data = req.model_dump(exclude={"notify_email"})
     data["prompt"] = translate.to_english(data["prompt"])
     if data.get("negative_prompt"):
         data["negative_prompt"] = translate.to_english(data["negative_prompt"])
     params = AiTextToVideoParams(**data)
-    return job_store.create(JobMode.AI_TEXT_TO_VIDEO, params.model_dump())
+    return job_store.create(JobMode.AI_TEXT_TO_VIDEO, params.model_dump(), notify_email=req.notify_email)
 
 
 def _require_usable_provider(provider_id: str, mode: str) -> None:
@@ -266,7 +272,7 @@ def create_ai_image_to_video_job(req: AiImageToVideoJobRequest) -> Job:
         duration_seconds=req.duration_seconds,
         provider=req.provider,
     )
-    return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump())
+    return job_store.create(JobMode.AI_IMAGE_TO_VIDEO, params.model_dump(), notify_email=req.notify_email)
 
 
 @app.post("/api/jobs/ai-image-edit", response_model=Job)
@@ -285,7 +291,7 @@ def create_ai_image_edit_job(req: AiImageEditJobRequest) -> Job:
         prompt=translate.to_english(req.prompt),
         provider=req.provider,
     )
-    return job_store.create(JobMode.AI_IMAGE_EDIT, params.model_dump())
+    return job_store.create(JobMode.AI_IMAGE_EDIT, params.model_dump(), notify_email=req.notify_email)
 
 
 @app.get("/api/jobs", response_model=list[Job])

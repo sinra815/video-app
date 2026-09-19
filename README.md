@@ -268,6 +268,46 @@ Then open http://localhost:5173. The frontend calls the backend at
 `VITE_API_BASE` (falls back to `http://127.0.0.1:8000` for local dev) — see
 [`src/api.js`](frontend/src/api.js).
 
+## Email notifications on job completion
+
+Every generation form (slideshow, AI text-to-video, image-to-video, image
+edit) has an optional "완료 시 알림 받을 이메일" field, pre-filled with
+`sinra815@gmail.com` (editable, and remembered per-browser via
+`localStorage` after the first submit). When set, the backend emails that
+address once the job reaches a terminal state (success or failure):
+
+- On success, the generated file is attached directly — a video as `.mp4`,
+  an AI image-edit result as `.png` — rather than linked, since Render's
+  free tier has no persistent disk and a download link can 404 once the
+  instance restarts before the recipient checks it. Only if the file is too
+  large to attach (>20MB) does it fall back to a `PUBLIC_BASE_URL` link.
+- On failure, the email includes the error message.
+- A notification failure never affects the job itself — it's logged and
+  swallowed (see `JobStore._run` in [`app/jobs.py`](backend/app/jobs.py)).
+
+This needs an SMTP relay configured via env vars on the backend service (see
+[`app/config.py`](backend/app/config.py) and
+[`app/email_notify.py`](backend/app/email_notify.py)) — notifications are
+silently skipped if `SMTP_HOST` isn't set, so this doesn't break deployments
+that don't configure it:
+
+- `SMTP_HOST`, `SMTP_PORT` (defaults to 587), `SMTP_USER`, `SMTP_PASSWORD`,
+  `SMTP_FROM` (defaults to `SMTP_USER`).
+- `PUBLIC_BASE_URL` — this backend's own public URL (e.g.
+  `https://video-app-backend-idmf.onrender.com`, no trailing slash), only
+  used for the oversized-file fallback link.
+- `DEFAULT_NOTIFY_EMAIL` — only affects `GET /api/health`'s
+  `default_notify_email` field; the actual pre-filled address in each form
+  is hardcoded in the frontend (`sinra815@gmail.com`), not fetched from the
+  backend.
+
+Works with any SMTP provider. For Gmail: `SMTP_HOST=smtp.gmail.com`,
+`SMTP_PORT=587`, `SMTP_USER` = your Gmail address, `SMTP_PASSWORD` = a
+[Google App Password](https://myaccount.google.com/apppasswords) (a regular
+account password won't work with 2FA enabled, which Google requires for App
+Passwords anyway). Set these as Render environment variables on the backend
+service (Environment tab) — same place as `ALLOWED_ORIGINS` — then redeploy.
+
 ## Deploying to Render (so it's reachable from a phone anywhere)
 
 This runs two separate Render services from the same repo: a Python web

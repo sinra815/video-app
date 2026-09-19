@@ -8,6 +8,9 @@ export default function ImageToVideoForm({ onJobCreated }) {
   const [duration, setDuration] = useState(5);
   const [providers, setProviders] = useState([]);
   const [provider, setProvider] = useState("magic_hour");
+  const [notifyEmail, setNotifyEmail] = useState(
+    () => localStorage.getItem("notifyEmail") || "sinra815@gmail.com"
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -36,12 +39,14 @@ export default function ImageToVideoForm({ onJobCreated }) {
     setError(null);
     try {
       const upload = await uploadFile(image);
+      if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
       const job = await createImageToVideoJob({
         image_file_id: upload.file_id,
         prompt,
         negative_prompt: negativePrompt || null,
         duration_seconds: Number(duration),
         provider,
+        notify_email: notifyEmail || null,
       });
       onJobCreated(job);
     } catch (err) {
@@ -109,6 +114,16 @@ export default function ImageToVideoForm({ onJobCreated }) {
           step="1"
           value={duration}
           onChange={(e) => setDuration(e.target.value)}
+        />
+      </label>
+
+      <label>
+        완료 시 알림 받을 이메일 (선택)
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={notifyEmail}
+          onChange={(e) => setNotifyEmail(e.target.value)}
         />
       </label>
 

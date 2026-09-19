@@ -3,7 +3,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
-from . import config
+from . import config, email_notify
 from .generators.cloudflare_image_edit import CloudflareImageEditGenerator
 from .generators.colab_ai import ColabAiGenerator
 from .generators.fal_image_edit import FalImageEditGenerator
@@ -46,8 +46,8 @@ class JobStore:
         self._lock = Lock()
         self._executor = ThreadPoolExecutor(max_workers=2)
 
-    def create(self, mode: JobMode, params: dict) -> Job:
-        job = Job(mode=mode)
+    def create(self, mode: JobMode, params: dict, notify_email: str | None = None) -> Job:
+        job = Job(mode=mode, notify_email=notify_email)
         with self._lock:
             self._jobs[job.id] = job
         self._executor.submit(self._run, job.id, params)
@@ -89,6 +89,13 @@ class JobStore:
         except Exception as exc:  # noqa: BLE001 - surface any failure to the job status
             traceback.print_exc()
             self._update(job_id, status=JobStatus.FAILED, progress="failed", error=str(exc))
+
+        job = self.get(job_id)
+        if job.notify_email:
+            try:
+                email_notify.send_job_notification(job, job.notify_email)
+            except Exception:  # noqa: BLE001 - a notification failure shouldn't affect the job itself
+                traceback.print_exc()
 
 
 job_store = JobStore()

@@ -10,6 +10,9 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
   // failed jobs) - T4 is the only tier this account can actually use, so
   // it's not offered as a choice.
   const gpu = "T4";
+  const [notifyEmail, setNotifyEmail] = useState(
+    () => localStorage.getItem("notifyEmail") || "sinra815@gmail.com"
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -22,11 +25,13 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
     setBusy(true);
     setError(null);
     try {
+      if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
       const job = await createAiJob({
         prompt,
         negative_prompt: negativePrompt || null,
         duration_seconds: Number(duration),
         gpu,
+        notify_email: notifyEmail || null,
       });
       onJobCreated(job);
     } catch (err) {
@@ -82,6 +87,16 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
           <input type="text" value="T4 (무료 Colab 계정에서 사용 가능한 유일한 옵션)" disabled />
         </label>
       </div>
+
+      <label>
+        완료 시 알림 받을 이메일 (선택)
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={notifyEmail}
+          onChange={(e) => setNotifyEmail(e.target.value)}
+        />
+      </label>
 
       {error && <p className="error-text">{error}</p>}
 

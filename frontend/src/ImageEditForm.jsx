@@ -6,6 +6,9 @@ export default function ImageEditForm({ onJobCreated }) {
   const [prompt, setPrompt] = useState("");
   const [providers, setProviders] = useState([]);
   const [provider, setProvider] = useState("cloudflare");
+  const [notifyEmail, setNotifyEmail] = useState(
+    () => localStorage.getItem("notifyEmail") || "sinra815@gmail.com"
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -34,10 +37,12 @@ export default function ImageEditForm({ onJobCreated }) {
     setError(null);
     try {
       const upload = await uploadFile(image);
+      if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
       const job = await createImageEditJob({
         image_file_id: upload.file_id,
         prompt,
         provider,
+        notify_email: notifyEmail || null,
       });
       onJobCreated(job);
     } catch (err) {
@@ -77,6 +82,16 @@ export default function ImageEditForm({ onJobCreated }) {
           placeholder="예: give the person sunglasses and a red jacket"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
+        />
+      </label>
+
+      <label>
+        완료 시 알림 받을 이메일 (선택)
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={notifyEmail}
+          onChange={(e) => setNotifyEmail(e.target.value)}
         />
       </label>
 

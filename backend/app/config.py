@@ -54,3 +54,21 @@ FAL_API_KEY = os.environ.get("FAL_API_KEY", "")
 # "Workers AI - Read" and "Workers AI - Edit" account permissions).
 CLOUDFLARE_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
 CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
+
+# Optional job-completion email notifications, sent via a plain SMTP relay
+# (works with Gmail - smtp.gmail.com:587 with an App Password - or any other
+# SMTP provider). Notifications are skipped entirely when SMTP_HOST is unset.
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", "") or SMTP_USER
+
+# This backend's own public URL (e.g. https://video-app-backend-idmf.onrender.com,
+# no trailing slash), used to build a download link in completion emails when
+# the generated file is too large to attach directly.
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+
+# Default address for job-completion notifications, pre-filled (and
+# editable) in every generation form.
+DEFAULT_NOTIFY_EMAIL = os.environ.get("DEFAULT_NOTIFY_EMAIL", "sinra815@gmail.com")
