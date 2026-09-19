@@ -14,8 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import colab_client, config, email_notify, translate
-from .generators import fal_image_to_video, magic_hour_image_to_video
-from .generators.fal_image_to_video import FalError
+from .generators import magic_hour_image_to_video
 from .generators.magic_hour_image_to_video import MagicHourError
 from .jobs import job_store
 from .models import (
@@ -24,10 +23,9 @@ from .models import (
     AiTextToVideoParams,
     Job,
     JobMode,
-    SlideshowParams,
 )
 
-app = FastAPI(title="Video Generator")
+app = FastAPI(title="컨텐츠 생성기")
 
 _default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 _extra_origins = [o.strip() for o in config.ALLOWED_ORIGINS.split(",") if o.strip()]
@@ -59,10 +57,9 @@ def health() -> dict:
 # Add an entry to the relevant catalog plus a matching generator in jobs.py's
 # _IMAGE_TO_VIDEO_GENERATORS / _IMAGE_EDIT_GENERATORS to wire up another
 # provider.
-_IMAGE_TO_VIDEO_PROVIDERS = {"magic_hour": "Magic Hour", "fal": "fal.ai"}
+_IMAGE_TO_VIDEO_PROVIDERS = {"magic_hour": "Magic Hour"}
 _IMAGE_EDIT_PROVIDERS = {
     "magic_hour": "Magic Hour",
-    "fal": "fal.ai",
     "cloudflare": "Cloudflare Workers AI",
 }
 
@@ -81,13 +78,6 @@ def _provider_entry(provider_id: str, label: str, mode: str) -> dict:
             try:
                 entry["credits"] = magic_hour_image_to_video.get_account().get("credits")
             except MagicHourError as exc:
-                entry["error"] = str(exc)
-    elif provider_id == "fal":
-        entry["configured"] = bool(config.FAL_API_KEY)
-        if entry["configured"]:
-            try:
-                entry["credits"] = fal_image_to_video.get_credits()
-            except FalError as exc:
                 entry["error"] = str(exc)
     elif provider_id == "cloudflare":
         # Workers AI uses a daily neuron quota rather than a queryable
@@ -117,16 +107,6 @@ async def upload_file(file: UploadFile = File(...)) -> dict:
     with dest.open("wb") as f:
         f.write(await file.read())
     return {"file_id": stored_name, "path": str(dest)}
-
-
-class SlideshowJobRequest(BaseModel):
-    image_file_ids: list[str]
-    audio_file_id: Optional[str] = None
-    seconds_per_image: float = 3.0
-    transition_seconds: float = 0.8
-    resolution: str = "1280x720"
-    fps: int = 30
-    notify_email: Optional[str] = None
 
 
 class AiJobRequest(BaseModel):
@@ -218,21 +198,6 @@ def _download_image_url(url: str) -> Path:
     dest = config.UPLOADS_DIR / f"{uuid.uuid4().hex}{suffix}"
     dest.write_bytes(data)
     return dest
-
-
-@app.post("/api/jobs/slideshow", response_model=Job)
-def create_slideshow_job(req: SlideshowJobRequest) -> Job:
-    image_paths = [str(_resolve_upload(fid)) for fid in req.image_file_ids]
-    audio_path = str(_resolve_upload(req.audio_file_id)) if req.audio_file_id else None
-    params = SlideshowParams(
-        image_paths=image_paths,
-        audio_path=audio_path,
-        seconds_per_image=req.seconds_per_image,
-        transition_seconds=req.transition_seconds,
-        resolution=req.resolution,
-        fps=req.fps,
-    )
-    return job_store.create(JobMode.SLIDESHOW, params.model_dump(), notify_email=req.notify_email)
 
 
 @app.post("/api/jobs/ai", response_model=Job)

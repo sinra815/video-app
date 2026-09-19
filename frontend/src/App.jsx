@@ -7,13 +7,30 @@ import ImageToVideoForm from "./ImageToVideoForm.jsx";
 import JobHistory from "./JobHistory.jsx";
 import JobStatus from "./JobStatus.jsx";
 import PinLock from "./PinLock.jsx";
+import { isSessionUnlocked, markSessionUnlocked } from "./pin";
 
 export default function App() {
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(isSessionUnlocked);
   const [showChangePin, setShowChangePin] = useState(false);
   const [mode, setMode] = useState("edit");
   const [job, setJob] = useState(null);
+  const [retrySubmit, setRetrySubmit] = useState(null);
   const [colabAvailable, setColabAvailable] = useState(false);
+
+  function handleJobCreated(newJob, retryFn) {
+    setJob(newJob);
+    setRetrySubmit(() => retryFn ?? null);
+  }
+
+  function handleReset() {
+    setJob(null);
+    setRetrySubmit(null);
+  }
+
+  async function handleRetry() {
+    const newJob = await retrySubmit();
+    setJob(newJob);
+  }
 
   useEffect(() => {
     getHealth()
@@ -22,13 +39,20 @@ export default function App() {
   }, []);
 
   if (!unlocked) {
-    return <PinLock onUnlock={() => setUnlocked(true)} />;
+    return (
+      <PinLock
+        onUnlock={() => {
+          markSessionUnlocked();
+          setUnlocked(true);
+        }}
+      />
+    );
   }
 
   return (
     <div className="app">
       <header>
-        <h1>AI 사진/동영상 생성기</h1>
+        <h1>컨텐츠 생성기</h1>
         <p className="subtitle">사진을 올리고 프롬프트로 원하는 모습으로 바꾸거나, 동영상으로 만드세요.</p>
         <button type="button" className="link-button" onClick={() => setShowChangePin(true)}>
           비밀번호 변경
@@ -66,14 +90,23 @@ export default function App() {
             </button>
           </nav>
 
-          {mode === "edit" && <ImageEditForm onJobCreated={setJob} />}
-          {mode === "ai" && <AiForm onJobCreated={setJob} colabAvailable={colabAvailable} />}
-          {mode === "image" && <ImageToVideoForm onJobCreated={setJob} />}
-          {mode === "history" && <JobHistory onSelectJob={setJob} />}
+          {mode === "edit" && <ImageEditForm onJobCreated={handleJobCreated} />}
+          {mode === "ai" && <AiForm onJobCreated={handleJobCreated} colabAvailable={colabAvailable} />}
+          {mode === "image" && <ImageToVideoForm onJobCreated={handleJobCreated} />}
+          {mode === "history" && (
+            <JobHistory
+              onSelectJob={(j) => {
+                setJob(j);
+                setRetrySubmit(null);
+              }}
+            />
+          )}
         </>
       )}
 
-      {!showChangePin && job && <JobStatus job={job} onReset={() => setJob(null)} />}
+      {!showChangePin && job && (
+        <JobStatus job={job} onReset={handleReset} onRetry={retrySubmit ? handleRetry : undefined} />
+      )}
     </div>
   );
 }

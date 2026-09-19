@@ -8,16 +8,6 @@ export async function uploadFile(file) {
   return res.json();
 }
 
-export async function createSlideshowJob(payload) {
-  const res = await fetch(`${BASE}/jobs/slideshow`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`Job creation failed: ${res.status}`);
-  return res.json();
-}
-
 export async function createAiJob(payload) {
   const res = await fetch(`${BASE}/jobs/ai`, {
     method: "POST",

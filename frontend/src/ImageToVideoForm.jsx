@@ -1,5 +1,18 @@
 import { useEffect, useState } from "react";
 import { createImageToVideoJob, getProviders, uploadFile } from "./api";
+import MagicHourClaimButton from "./MagicHourClaimButton.jsx";
+
+const MIN_DURATION_SECONDS = 1;
+const MAX_DURATION_SECONDS = 10;
+// Magic Hour image-to-video charges per rendered second, priced per model.
+// 24 credits/sec (a guess from Magic Hour's published rate card) was off -
+// confirmed against a real account with a 120-credit balance that this
+// free-tier default model (ltx-2.5) actually costs 30 credits/sec (120/30
+// = 4s exactly, matching what the account could really afford). Not
+// billed by us - only used to suggest a duration the current balance can
+// actually afford, so a low-credit account doesn't default to 5s and fail
+// partway through rendering.
+const MAGIC_HOUR_CREDITS_PER_SECOND = 30;
 
 export default function ImageToVideoForm({ onJobCreated }) {
   const [image, setImage] = useState(null);
@@ -21,6 +34,12 @@ export default function ImageToVideoForm({ onJobCreated }) {
         setProvider((current) =>
           list.some((p) => p.id === current && p.usable) ? current : list.find((p) => p.usable)?.id ?? current
         );
+
+        const magicHour = list.find((p) => p.id === "magic_hour");
+        if (magicHour?.usable && typeof magicHour.credits === "number") {
+          const affordableSeconds = Math.floor(magicHour.credits / MAGIC_HOUR_CREDITS_PER_SECOND);
+          setDuration(Math.max(MIN_DURATION_SECONDS, Math.min(MAX_DURATION_SECONDS, affordableSeconds)));
+        }
       })
       .catch(() => setProviders([]));
   }, []);
@@ -40,15 +59,17 @@ export default function ImageToVideoForm({ onJobCreated }) {
     try {
       const upload = await uploadFile(image);
       if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
-      const job = await createImageToVideoJob({
-        image_file_id: upload.file_id,
-        prompt,
-        negative_prompt: negativePrompt || null,
-        duration_seconds: Number(duration),
-        provider,
-        notify_email: notifyEmail || null,
-      });
-      onJobCreated(job);
+      const submit = () =>
+        createImageToVideoJob({
+          image_file_id: upload.file_id,
+          prompt,
+          negative_prompt: negativePrompt || null,
+          duration_seconds: Number(duration),
+          provider,
+          notify_email: notifyEmail || null,
+        });
+      const job = await submit();
+      onJobCreated(job, submit);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -75,9 +96,10 @@ export default function ImageToVideoForm({ onJobCreated }) {
 
       <p className="notice">
         이 기능은 <a href="https://magichour.ai" target="_blank" rel="noreferrer">Magic Hour</a>{" "}
-        무료 크레딧으로 동작합니다. 크레딧이 부족해지면 매일 한 번 magichour.ai에 접속해서 출석
-        포인트를 받아두세요.
+        무료 크레딧으로 동작합니다. 크레딧이 부족해지면 아래 버튼으로 매일 한 번 magichour.ai에
+        접속해서 출석 포인트를 받아두세요.
       </p>
+      <MagicHourClaimButton />
 
       <label>
         사진
@@ -109,8 +131,8 @@ export default function ImageToVideoForm({ onJobCreated }) {
         <input
           type="number"
           inputMode="numeric"
-          min="1"
-          max="10"
+          min={MIN_DURATION_SECONDS}
+          max={MAX_DURATION_SECONDS}
           step="1"
           value={duration}
           onChange={(e) => setDuration(e.target.value)}

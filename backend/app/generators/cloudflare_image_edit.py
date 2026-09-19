@@ -45,7 +45,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from .. import config
+from .. import config, translate
 from .base import ProgressCallback, VideoGenerator
 
 _MODEL = "@cf/black-forest-labs/flux-2-dev"
@@ -53,16 +53,33 @@ _TIMEOUT_SECONDS = 120
 _MAX_DIMENSION = 512
 # FLUX.2 [dev] is popular enough that Cloudflare's free-tier capacity for it
 # is often exhausted (429 {"code": 3040, "message": "Capacity temporarily
-# exceeded, please try again"}), confirmed intermittent (not permanent)
-# against a real account - retrying with backoff usually clears it, but a
-# real job once exhausted the original 3-retry budget (4 attempts, ~50s)
-# outright during a sustained high-demand window. This runs in a background
-# thread with no HTTP request tied to it (the frontend polls job status
-# separately), so there's no external timeout forcing a short budget -
-# widened to 8 retries (9 attempts, ~4.6min of cumulative backoff) to ride
-# out longer capacity dips before giving up.
+# exceeded, please try again"}), confirmed intermittent against a real
+# account - retrying with backoff usually clears it. This budget was
+# widened to 8 retries (9 attempts, ~4.6min) once to ride out longer
+# capacity dips, but two separate real jobs both had the whole backend
+# process restart out from under them somewhere in that ~4.6min window
+# (job vanished with 404 mid-retry, and - worse - wiped every other job's
+# state too, since Render's free-tier disk doesn't survive a restart
+# either, confirmed empirically). A third real job with the original
+# shorter budget (4 attempts, ~50s) failed cleanly instead (no crash).
+# Correlation isn't proof, but holding a thread + memory for minutes on a
+# 512MB free instance is exactly the kind of thing that would cause an
+# OOM restart, and a clean "failed" beats silently losing every job's
+# history - narrowed back down.
 _CAPACITY_ERROR_CODE = 3040
-_RETRY_DELAYS_SECONDS = (5, 10, 15, 20, 30, 45, 60, 90)
+_RETRY_DELAYS_SECONDS = (5, 15, 30)
+
+# FLUX.2 [dev]'s content filter sometimes refuses ordinary, non-explicit
+# edits (outfit/background/style changes) with a generic "please choose
+# another prompt" message - it appears to key off exact wording rather than
+# an actual policy violation, since a semantically identical prompt reworded
+# differently sometimes then passes. Retried with a paraphrase (round-trip
+# translated through another language and back, see translate.paraphrase)
+# instead of the unchanged original on this specific error - unlike the
+# capacity-error retry above, resending the same prompt here would just get
+# refused the same way every time.
+_CONTENT_REFUSAL_MARKER = "choose another prompt"
+_PARAPHRASE_VIA_LANGS = ("ko", "ja", "fr")
 
 
 class CloudflareError(RuntimeError):
@@ -145,22 +162,36 @@ class CloudflareImageEditGenerator(VideoGenerator):
         on_progress("resizing source image")
         image_bytes = _resize_for_upload(image_path)
 
-        prompt = f"Using image 0 as the source photo, {params['prompt']}"
-        attempts = len(_RETRY_DELAYS_SECONDS) + 1
-        for attempt in range(1, attempts + 1):
+        base_prompt = params["prompt"]
+        prompt = f"Using image 0 as the source photo, {base_prompt}"
+        capacity_retries_left = len(_RETRY_DELAYS_SECONDS)
+        paraphrase_attempts_left = len(_PARAPHRASE_VIA_LANGS)
+        attempt = 0
+        while True:
+            attempt += 1
             on_progress(
                 "submitting job to Cloudflare Workers AI"
                 if attempt == 1
-                else f"retrying Cloudflare Workers AI ({attempt}/{attempts})"
+                else f"retrying Cloudflare Workers AI (attempt {attempt})"
             )
             try:
                 content_type, raw = _run(prompt, image_bytes)
                 break
             except CloudflareError as exc:
-                is_capacity_error = f'"code":{_CAPACITY_ERROR_CODE}' in str(exc)
-                if not is_capacity_error or attempt == attempts:
-                    raise
-                time.sleep(_RETRY_DELAYS_SECONDS[attempt - 1])
+                message = str(exc)
+                if f'"code":{_CAPACITY_ERROR_CODE}' in message and capacity_retries_left:
+                    delay = _RETRY_DELAYS_SECONDS[len(_RETRY_DELAYS_SECONDS) - capacity_retries_left]
+                    capacity_retries_left -= 1
+                    time.sleep(delay)
+                    continue
+                if _CONTENT_REFUSAL_MARKER in message.lower() and paraphrase_attempts_left:
+                    via_lang = _PARAPHRASE_VIA_LANGS[len(_PARAPHRASE_VIA_LANGS) - paraphrase_attempts_left]
+                    paraphrase_attempts_left -= 1
+                    on_progress(f"prompt was refused, rewording and retrying ({via_lang})")
+                    base_prompt = translate.paraphrase(base_prompt, via_lang)
+                    prompt = f"Using image 0 as the source photo, {base_prompt}"
+                    continue
+                raise
 
         on_progress("saving result")
         if content_type.startswith("image/"):

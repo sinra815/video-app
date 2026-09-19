@@ -1,3 +1,4 @@
+import json
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
@@ -6,15 +7,11 @@ from threading import Lock
 from . import config, email_notify
 from .generators.cloudflare_image_edit import CloudflareImageEditGenerator
 from .generators.colab_ai import ColabAiGenerator
-from .generators.fal_image_edit import FalImageEditGenerator
-from .generators.fal_image_to_video import FalImageToVideoGenerator
 from .generators.magic_hour_image_edit import MagicHourImageEditGenerator
 from .generators.magic_hour_image_to_video import MagicHourImageToVideoGenerator
-from .generators.slideshow import SlideshowGenerator
 from .models import Job, JobMode, JobStatus
 
 _GENERATORS = {
-    JobMode.SLIDESHOW: SlideshowGenerator(),
     JobMode.AI_TEXT_TO_VIDEO: ColabAiGenerator(),
 }
 
@@ -24,12 +21,10 @@ _GENERATORS = {
 # than a single fixed generator like the other modes above.
 _IMAGE_TO_VIDEO_GENERATORS = {
     "magic_hour": MagicHourImageToVideoGenerator(),
-    "fal": FalImageToVideoGenerator(),
 }
 
 _IMAGE_EDIT_GENERATORS = {
     "magic_hour": MagicHourImageEditGenerator(),
-    "fal": FalImageEditGenerator(),
     "cloudflare": CloudflareImageEditGenerator(),
 }
 
@@ -39,17 +34,57 @@ _OUTPUT_EXTENSIONS = {
     JobMode.AI_IMAGE_EDIT: ".png",
 }
 
+# Job records used to live only in this process's memory - a free-tier
+# container restart (e.g. an OOM kill during a long Cloudflare FLUX.2 retry
+# loop) wiped every job silently, with the frontend left polling a 404
+# forever (see JobStatus.jsx). This was expected to at least survive a
+# same-container restart, but confirmed against two real crashes that
+# Render's free-tier disk does *not* survive a restart either (matches the
+# README's existing "lost on every redeploy or restart" storage caveat,
+# which turned out to be literal) - GET /api/jobs came back empty right
+# after. Kept anyway since it's harmless and helps in any environment
+# where the disk *does* survive (local dev, a paid Render disk), but don't
+# rely on it surviving a crash on this deployment - see
+# cloudflare_image_edit.py's retry budget for the actual mitigation
+# (shorter retries so the crash is less likely to happen at all).
+_JOBS_FILE = config.STORAGE_DIR / "jobs.json"
+
 
 class JobStore:
     def __init__(self) -> None:
         self._jobs: dict[str, Job] = {}
         self._lock = Lock()
         self._executor = ThreadPoolExecutor(max_workers=2)
+        self._load()
+
+    def _load(self) -> None:
+        if not _JOBS_FILE.exists():
+            return
+        try:
+            raw = json.loads(_JOBS_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+        for entry in raw:
+            job = Job(**entry)
+            if job.status in (JobStatus.QUEUED, JobStatus.RUNNING):
+                # No generator thread survives a process restart, so a job
+                # left in-flight here can never finish on its own - mark it
+                # failed instead of leaving it stuck for the frontend to
+                # poll forever.
+                job.status = JobStatus.FAILED
+                job.progress = "failed"
+                job.error = "서버가 재시작되어 작업이 중단되었습니다. 다시 시도해주세요."
+            self._jobs[job.id] = job
+
+    def _save(self) -> None:
+        data = [job.model_dump() for job in self._jobs.values()]
+        _JOBS_FILE.write_text(json.dumps(data), encoding="utf-8")
 
     def create(self, mode: JobMode, params: dict, notify_email: str | None = None) -> Job:
         job = Job(mode=mode, notify_email=notify_email)
         with self._lock:
             self._jobs[job.id] = job
+            self._save()
         self._executor.submit(self._run, job.id, params)
         return job
 
@@ -67,6 +102,7 @@ class JobStore:
             for key, value in fields.items():
                 setattr(job, key, value)
             job.updated_at = time.time()
+            self._save()
 
     def _run(self, job_id: str, params: dict) -> None:
         self._update(job_id, status=JobStatus.RUNNING, progress="starting")

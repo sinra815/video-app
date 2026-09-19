@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 
 
 class JobMode(str, Enum):
-    SLIDESHOW = "slideshow"
     AI_TEXT_TO_VIDEO = "ai_text_to_video"
     AI_IMAGE_TO_VIDEO = "ai_image_to_video"
     AI_IMAGE_EDIT = "ai_image_edit"
@@ -18,15 +17,6 @@ class JobStatus(str, Enum):
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
-
-
-class SlideshowParams(BaseModel):
-    image_paths: list[str]
-    audio_path: Optional[str] = None
-    seconds_per_image: float = 3.0
-    transition_seconds: float = 0.8
-    resolution: str = "1280x720"
-    fps: int = 30
 
 
 class AiTextToVideoParams(BaseModel):

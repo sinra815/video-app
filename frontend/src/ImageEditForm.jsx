@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createImageEditJob, getProviders, uploadFile } from "./api";
+import MagicHourClaimButton from "./MagicHourClaimButton.jsx";
 
 export default function ImageEditForm({ onJobCreated }) {
   const [image, setImage] = useState(null);
@@ -38,13 +39,18 @@ export default function ImageEditForm({ onJobCreated }) {
     try {
       const upload = await uploadFile(image);
       if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
-      const job = await createImageEditJob({
-        image_file_id: upload.file_id,
-        prompt,
-        provider,
-        notify_email: notifyEmail || null,
-      });
-      onJobCreated(job);
+      // Re-postable without re-uploading: the file stays on the server
+      // under this id, so a retry (manual or automatic) just resubmits
+      // the same job params as a fresh, short-lived job.
+      const submit = () =>
+        createImageEditJob({
+          image_file_id: upload.file_id,
+          prompt,
+          provider,
+          notify_email: notifyEmail || null,
+        });
+      const job = await submit();
+      onJobCreated(job, submit);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -68,6 +74,12 @@ export default function ImageEditForm({ onJobCreated }) {
         </select>
       </label>
       {selected?.error && <p className="error-text">{selected.error}</p>}
+
+      <p className="notice">
+        Magic Hour 크레딧이 부족해지면 아래 버튼으로 매일 한 번 magichour.ai에 접속해서 출석
+        포인트를 받아두세요.
+      </p>
+      <MagicHourClaimButton />
 
       <label>
         사진

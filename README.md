@@ -1,26 +1,22 @@
-# Video Generator
+# 컨텐츠 생성기 (Content Generator)
 
-A web app for generating videos two ways:
+A web app for AI-generating photos and videos three ways:
 
-1. **Image slideshow** — upload images (+ optional background audio), get an mp4
-   with crossfade transitions. Runs locally via `ffmpeg` (bundled through
-   `imageio-ffmpeg`), no GPU or external service required.
-2. **AI text-to-video** — a text prompt is turned into a short video by
+1. **AI text-to-video** — a text prompt is turned into a short video by
    provisioning a GPU runtime on Google Colab via
    [`google-colab-cli`](https://github.com/googlecolab/google-colab-cli),
    running a diffusers text-to-video pipeline there, and pulling the result
    back.
-3. **AI image-to-video** — a photo + a text prompt (what motion/change to
+2. **AI image-to-video** — a photo + a text prompt (what motion/change to
    apply) generates a short video via the hosted [Magic
    Hour](https://magichour.ai) API (see [Image-to-video via Magic
    Hour](#image-to-video-via-magic-hour) below), not Colab. Also supports
    giving the image as a URL instead of uploading a file, since the server
    fetches it itself.
-4. **AI image edit** — a photo + a text prompt (what to change) returns an
-   edited still image instead of a video, via one of three providers picked
+3. **AI image edit** — a photo + a text prompt (what to change) returns an
+   edited still image instead of a video, via one of two providers picked
    in the "생성 API" selector: Magic Hour's `/ai-image-editor` (needs a paid
-   plan - see caveat below), fal.ai's FLUX Kontext [dev] (needs USD credit
-   balance), or [Cloudflare Workers AI](#image-edit-via-cloudflare-workers-ai-third-provider)
+   plan - see caveat below), or [Cloudflare Workers AI](#image-edit-via-cloudflare-workers-ai-second-provider)
    (free, no card required - the default).
 
 ## Stack
@@ -163,50 +159,12 @@ model"). Not a bug in this app; Magic Hour just doesn't offer that specific
 feature on the free/trial tier. Use the Cloudflare Workers AI provider for
 image edit instead (see below).
 
-## Image-to-video via fal.ai (second provider)
+## Image edit via Cloudflare Workers AI (second provider)
 
-Added as a second image-to-video provider alongside Magic Hour, both to
-have a fallback when one runs out of credits and because fal.ai has
-predictable per-generation USD pricing instead of Magic Hour's opaque
-credit system. Uses fal.ai's hosted **LTX-Video** model
-(`fal-ai/ltx-video/image-to-video`, ~$0.02/generation) via
-`app/generators/fal_image_to_video.py`:
-
-1. Upload the source image: `POST /storage/upload/initiate?storage_type=gcs`
-   on `https://rest.fal.ai` (get a presigned `upload_url` + `file_url`),
-   then `PUT` the bytes to `upload_url`.
-2. Submit the job: `POST https://queue.fal.run/fal-ai/ltx-video/image-to-video`
-   with `{"image_url", "prompt", "negative_prompt"?}` (no wrapper object) ->
-   `{"request_id", "status_url", "response_url", ...}`.
-3. Poll `status_url` until `status` is `COMPLETED`, then `GET response_url`
-   and download from `video.url`.
-
-This model produces a fixed ~5s clip - `duration_seconds` from the request
-is not configurable here and is silently ignored for this provider only.
-
-Set `FAL_API_KEY` as a backend env var — get a free key (no card required,
-trial credits) at <https://fal.ai/dashboard/keys>. Auth header is
-`Authorization: Key <FAL_API_KEY>` (not `Bearer`).
-
-**Verification status**: built from fal's official Python client source
-(`fal-ai/fal` on GitHub) and cross-checked docs, since fal.ai's docs
-domains aren't reachable from this dev sandbox to test live end-to-end the
-way Magic Hour was (see the `type`/`type_` bug that only showed up against
-a real call). If image-to-video via the "fal.ai (LTX-Video)" option fails,
-check the job's error message first — it's the raw API response, which
-should point at the exact mismatch.
-
-fal.ai's own account balance also ran out during testing (`403 Exhausted
-balance` on a real `/ai-image-editor`-equivalent call via FLUX Kontext), so
-image edit through this provider needs the account topped up with a small
-USD balance before it'll work — not a code bug.
-
-## Image edit via Cloudflare Workers AI (third provider)
-
-Added as a third image-edit provider (`app/generators/cloudflare_image_edit.py`)
-after both Magic Hour (needs a paid plan for `/ai-image-editor`, see above)
-and fal.ai (needs a topped-up balance) turned out not to be usable for free
-in practice. Cloudflare Workers AI's free plan gives **10,000 "neurons"/day
+Added as a second image-edit provider (`app/generators/cloudflare_image_edit.py`)
+after Magic Hour (needs a paid plan for `/ai-image-editor`, see above)
+turned out not to be usable for free in practice. Cloudflare Workers AI's
+free plan gives **10,000 "neurons"/day
 at no cost, no card required**, running the open-weight Stable Diffusion
 XL `img2img` model:
 
@@ -245,6 +203,25 @@ Policy still applies at the platform level (sexual, exploitative, or
 otherwise prohibited content is not permitted regardless of provider) —
 this only reduces false-positive refusals on legitimate edits, not the
 underlying policy.
+
+Even so, the model still occasionally refuses an ordinary edit with a
+generic "please choose another prompt" message, seemingly keying off exact
+wording rather than an actual policy violation — a semantically identical
+prompt reworded differently sometimes then passes. On that specific error,
+`cloudflare_image_edit.py` now retries with the prompt reworded via
+round-trip translation (English → Korean/Japanese/French → English, using
+the same free Google Translate endpoint as `translate.py`) instead of
+resending the unchanged prompt, up to 3 times, separately from the
+capacity-error retry above.
+
+**Ruled out: Google Gemini (`gemini-3.1-flash-image`, "Nano Banana")**. Best
+edit quality of anything tried (identity-preserving, closed model), and a
+real request authenticated fine with a free API key - but every image
+model returns `429 {"code": "too_many_requests", ...limit: 0...}` until the
+Google Cloud project has a **billing account linked**, even to use the free
+daily quota at all (a widely-reported Gemini API behavior, not a bug in
+this app). Ruled out here specifically because it requires registering a
+card - do not re-add this provider unless that changes.
 
 ## Running locally
 
@@ -338,7 +315,29 @@ service for the backend, and a static site for the frontend.
   container's local disk, so they're **lost on every redeploy or restart**.
   Fine for trying it out; for real use, add a paid persistent disk mounted at
   `backend/storage`, or swap local storage for S3-compatible object storage
-  (not implemented here).
+  (not implemented here). This also means job history (`JobStore`, backed by
+  `storage/jobs.json`) doesn't survive a crash-triggered restart either -
+  confirmed against two real jobs that vanished (`GET /api/jobs` came back
+  `[]` right after) when the backend process restarted mid-job. The write
+  is still there since it's harmless and helps in any environment where the
+  disk *does* survive, but don't rely on it here.
+- **512MB RAM is tight** — a Cloudflare FLUX.2 image-edit job holding a
+  background thread in a multi-minute retry-with-backoff loop (see
+  `cloudflare_image_edit.py`) correlated with the whole process restarting
+  mid-job twice in a row when the retry budget was widened to ~4.6 minutes;
+  narrowing it back to ~50s (3 retries) stopped it. If job history keeps
+  disappearing, suspect whatever generator is holding a thread longest.
+  Since the backend retry budget alone still leaves real capacity dips
+  unhandled, `JobStatus.jsx` now also retries client-side on **any** job
+  failure, but as separate short-lived job submissions spread ~5s apart (up
+  to 12 extra attempts) instead of one long-held backend request. A
+  permanently-broken request (bad config, plan-gated provider, etc.) just
+  fails the same way each of the 12 times and then stops - this trades a
+  few wasted retries on non-transient errors for not needing to keep a
+  by-error allowlist in sync. Also a manual "다시 시도" button on any failure
+  that resubmits without re-uploading the photo (the server keeps the
+  uploaded file, so a retry only needs the same
+  `image_file_id`/prompt/provider).
 - The free web service spins down after 15 minutes of inactivity — the first
   request after that takes 30-60s to wake it back up.
 - The Colab OAuth token is stored as a Render Secret File, which — unlike

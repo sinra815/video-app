@@ -18,7 +18,7 @@ export default function PinLock({ onUnlock }) {
   return (
     <div className="app">
       <header>
-        <h1>동영상 생성기</h1>
+        <h1>컨텐츠 생성기</h1>
         <p className="subtitle">비밀번호 4자리를 입력하세요.</p>
       </header>
       <div className="panel">

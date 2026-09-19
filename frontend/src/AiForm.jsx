@@ -26,14 +26,16 @@ export default function AiForm({ onJobCreated, colabAvailable }) {
     setError(null);
     try {
       if (notifyEmail) localStorage.setItem("notifyEmail", notifyEmail);
-      const job = await createAiJob({
-        prompt,
-        negative_prompt: negativePrompt || null,
-        duration_seconds: Number(duration),
-        gpu,
-        notify_email: notifyEmail || null,
-      });
-      onJobCreated(job);
+      const submit = () =>
+        createAiJob({
+          prompt,
+          negative_prompt: negativePrompt || null,
+          duration_seconds: Number(duration),
+          gpu,
+          notify_email: notifyEmail || null,
+        });
+      const job = await submit();
+      onJobCreated(job, submit);
     } catch (err) {
       setError(err.message);
     } finally {
